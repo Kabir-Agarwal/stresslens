@@ -212,6 +212,57 @@ def _get_last_two_values(row_cells) -> tuple:
     return 0.0, 0.0
 
 
+# Common name-to-symbol mapping for search
+NAME_TO_SYMBOL = {
+    "reliance": "RELIANCE", "reliance industries": "RELIANCE", "ril": "RELIANCE",
+    "tcs": "TCS", "tata consultancy": "TCS", "tata consultancy services": "TCS",
+    "infosys": "INFY", "infy": "INFY",
+    "hdfc bank": "HDFCBANK", "hdfcbank": "HDFCBANK", "hdfc": "HDFCBANK",
+    "icici bank": "ICICIBANK", "icicibank": "ICICIBANK", "icici": "ICICIBANK",
+    "sbi": "SBIN", "sbin": "SBIN", "state bank": "SBIN", "state bank of india": "SBIN",
+    "yes bank": "YESBANK", "yesbank": "YESBANK",
+    "dhfl": "DHFL", "dewan housing": "DHFL",
+    "tata motors": "TATAMOTORS", "tatamotors": "TATAMOTORS",
+    "wipro": "WIPRO",
+    "itc": "ITC",
+    "bharti airtel": "BHARTIARTL", "airtel": "BHARTIARTL", "bhartiartl": "BHARTIARTL",
+    "axis bank": "AXISBANK", "axisbank": "AXISBANK", "axis": "AXISBANK",
+    "kotak bank": "KOTAKBANK", "kotakbank": "KOTAKBANK", "kotak": "KOTAKBANK",
+    "kotak mahindra": "KOTAKBANK", "kotak mahindra bank": "KOTAKBANK",
+    "larsen": "LT", "l&t": "LT", "lt": "LT", "larsen and toubro": "LT",
+    "bajaj finance": "BAJFINANCE", "bajfinance": "BAJFINANCE",
+    "maruti": "MARUTI", "maruti suzuki": "MARUTI",
+    "sun pharma": "SUNPHARMA", "sunpharma": "SUNPHARMA",
+    "hcl tech": "HCLTECH", "hcltech": "HCLTECH", "hcl technologies": "HCLTECH",
+    "power grid": "POWERGRID", "powergrid": "POWERGRID",
+    "ntpc": "NTPC",
+    "adani enterprises": "ADANIENT", "adanient": "ADANIENT", "adani": "ADANIENT",
+    "tech mahindra": "TECHM", "techm": "TECHM",
+    "titan": "TITAN",
+    "asian paints": "ASIANPAINT", "asianpaint": "ASIANPAINT",
+}
+
+
+def normalize_symbol(query: str) -> str:
+    """Convert a company name or symbol query to an NSE symbol."""
+    q = query.strip()
+    # If it's already all uppercase and no spaces, treat as symbol
+    if q == q.upper() and " " not in q:
+        return q
+    # Try name lookup
+    key = q.lower().strip()
+    if key in NAME_TO_SYMBOL:
+        return NAME_TO_SYMBOL[key]
+    # Try removing common suffixes
+    for suffix in [" ltd", " limited", " corp", " inc"]:
+        if key.endswith(suffix):
+            trimmed = key[:-len(suffix)].strip()
+            if trimmed in NAME_TO_SYMBOL:
+                return NAME_TO_SYMBOL[trimmed]
+    # Fallback: uppercase it and hope it's a valid symbol
+    return q.upper().replace(" ", "")
+
+
 class DataFetcher:
     def __init__(self):
         self.session = requests.Session()
@@ -305,28 +356,33 @@ class DataFetcher:
     def fetch_screener_data(self, symbol: str) -> Optional[Dict]:
         """
         Scrape financial data from Screener.in HTML page.
-        This is the PRIMARY data source -the /api/ endpoint doesn't exist.
-        Extracts from: P&L table, Balance Sheet table, Cash Flow table, Shareholding table.
+        Tries standalone first, then consolidated balance sheet.
         """
-        url = f"https://www.screener.in/company/{symbol}/"
-        try:
-            resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
-            if resp.status_code == 404:
-                print(f"[DataFetcher] Screener.in: company '{symbol}' not found (404)")
-                return None
-            if resp.status_code != 200:
-                print(f"[DataFetcher] Screener.in returned {resp.status_code} for {symbol}")
-                return None
-
-            print(f"[DataFetcher] Screener.in page loaded for {symbol} ({len(resp.text)} bytes)")
-            return self._parse_screener_html(resp.text, symbol)
-
-        except requests.exceptions.Timeout:
-            print(f"[DataFetcher] Screener.in TIMEOUT for {symbol}")
-        except requests.exceptions.ConnectionError as e:
-            print(f"[DataFetcher] Screener.in CONNECTION ERROR for {symbol}: {e}")
-        except Exception as e:
-            print(f"[DataFetcher] Screener.in ERROR for {symbol}: {type(e).__name__}: {e}")
+        urls = [
+            f"https://www.screener.in/company/{symbol}/consolidated/",
+            f"https://www.screener.in/company/{symbol}/",
+        ]
+        for url in urls:
+            try:
+                resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+                if resp.status_code == 200 and len(resp.text) > 5000:
+                    variant = "consolidated" if "consolidated" in url else "standalone"
+                    print(f"[DataFetcher] Screener.in {variant} loaded for {symbol} ({len(resp.text)} bytes)")
+                    result = self._parse_screener_html(resp.text, symbol)
+                    if result and result.get("sales", 0) > 0:
+                        return result
+                    print(f"[DataFetcher] Screener.in {variant} had no usable data, trying next...")
+                elif resp.status_code == 404:
+                    continue
+                else:
+                    print(f"[DataFetcher] Screener.in returned {resp.status_code} for {url}")
+            except requests.exceptions.Timeout:
+                print(f"[DataFetcher] Screener.in TIMEOUT for {url}")
+            except requests.exceptions.ConnectionError as e:
+                print(f"[DataFetcher] Screener.in CONNECTION ERROR: {e}")
+            except Exception as e:
+                print(f"[DataFetcher] Screener.in ERROR: {type(e).__name__}: {e}")
+        print(f"[DataFetcher] Screener.in: all URLs failed for {symbol}")
         return None
 
     def _parse_screener_html(self, html: str, symbol: str) -> Optional[Dict]:
@@ -493,7 +549,142 @@ class DataFetcher:
             return None
 
         print(f"[DataFetcher] Screener.in parsed OK: sales={result.get('sales')}, profit={result.get('profit')}, assets={result.get('total_assets')}, cfo={result.get('cfo')}")
+
+        # Extract historical multi-year data for trend chart
+        result["_historical_quarters"] = self._parse_screener_historical(table_map, result)
+
         return result
+
+    def _parse_screener_historical(self, table_map: Dict, current: Dict) -> List[Dict]:
+        """
+        Extract last 8 years of financial data from Screener.in tables.
+        Each table has columns like: ['', 'Mar 2014', 'Mar 2015', ..., 'TTM']
+        Returns a list of quarterly dicts suitable for scoring.
+        """
+
+        def get_row_all_values(table, *row_names):
+            """Get all year values for a named row."""
+            if table is None:
+                return []
+            for row in table.find_all("tr"):
+                cells = row.find_all(["th", "td"])
+                if not cells:
+                    continue
+                label = cells[0].get_text(strip=True).lower().split("\n")[0].strip().rstrip("+").strip()
+                for name in row_names:
+                    if name in label:
+                        values = []
+                        for cell in cells[1:]:
+                            txt = cell.get_text(strip=True)
+                            if txt and txt != "TTM":
+                                values.append(_parse_indian_number(txt))
+                            elif txt == "TTM":
+                                pass  # skip TTM column
+                        return values
+            return []
+
+        def get_year_headers(table):
+            """Get column headers (year names) from a table."""
+            if table is None:
+                return []
+            header_row = table.find("tr")
+            if not header_row:
+                return []
+            ths = header_row.find_all("th")
+            years = []
+            for th in ths[1:]:  # skip first empty header
+                txt = th.get_text(strip=True)
+                if txt and txt != "TTM":
+                    years.append(txt)
+            return years
+
+        pl = table_map.get("pl")
+        bs = table_map.get("bs")
+        cf = table_map.get("cf")
+
+        # Get year labels from P&L table
+        years = get_year_headers(pl)
+        if not years:
+            return []
+
+        # Extract all row data
+        sales_all = get_row_all_values(pl, "sales", "revenue")
+        profit_all = get_row_all_values(pl, "net profit", "profit after tax")
+        depreciation_all = get_row_all_values(pl, "depreciation")
+        expenses_all = get_row_all_values(pl, "expenses")
+
+        assets_all = get_row_all_values(bs, "total assets")
+        borrowings_all = get_row_all_values(bs, "borrowings", "long term debt")
+        reserves_all = get_row_all_values(bs, "reserves")
+        other_liab_all = get_row_all_values(bs, "other liabilities")
+        fixed_assets_all = get_row_all_values(bs, "fixed assets", "property")
+        other_assets_all = get_row_all_values(bs, "other assets")
+        equity_all = get_row_all_values(bs, "equity capital")
+
+        cfo_all = get_row_all_values(cf, "cash from operating", "operating activity")
+
+        # Take last 8 years
+        n = min(len(years), 8)
+        quarters = []
+
+        for i in range(-n, 0):
+            def safe_get(arr, idx, default=0.0):
+                try:
+                    return arr[idx]
+                except (IndexError, TypeError):
+                    return default
+
+            sales = safe_get(sales_all, i)
+            profit = safe_get(profit_all, i)
+            expenses = safe_get(expenses_all, i)
+            dep = safe_get(depreciation_all, i)
+            ta = safe_get(assets_all, i)
+            borrowings = safe_get(borrowings_all, i)
+            reserves = safe_get(reserves_all, i)
+            other_liab = safe_get(other_liab_all, i)
+            ppe = safe_get(fixed_assets_all, i)
+            other_assets = safe_get(other_assets_all, i)
+            eq_cap = safe_get(equity_all, i)
+            cfo = safe_get(cfo_all, i)
+
+            cogs = expenses if expenses > 0 else (sales * 0.65 if sales > 0 else 0)
+            ebit = profit * 1.3 if profit > 0 else 0
+            total_liab = borrowings + other_liab
+            if total_liab == 0 and ta > 0:
+                total_liab = ta - reserves - eq_cap
+
+            year_label = safe_get(years, i, f"Y{i}")
+
+            quarters.append({
+                "quarter": year_label,
+                "sales": sales,
+                "profit": profit,
+                "cfo": cfo,
+                "cogs": cogs,
+                "depreciation": dep,
+                "total_assets": ta if ta > 0 else 1,
+                "long_term_debt": borrowings,
+                "retained_earnings": reserves,
+                "ppe": ppe,
+                "current_assets": other_assets,
+                "current_liabilities": other_liab,
+                "total_liabilities": total_liab if total_liab > 0 else 1,
+                "working_capital": other_assets - other_liab,
+                "ebit": ebit,
+                "sga": sales * 0.08,
+                "receivables": sales * 0.08,
+                "shares_outstanding": eq_cap / (current.get("face_value", 10) or 10) if eq_cap > 0 else 0,
+                "market_cap": current.get("market_cap", 0),
+                "pledge_pct": current.get("pledge_pct", 0),
+                "promoter_holding": current.get("promoter_holding", 0),
+                "gross_margin": (sales - cogs) / sales if sales > 0 else 0,
+                "roa": profit / ta if ta > 0 else 0,
+            })
+
+        if quarters:
+            print(f"[DataFetcher] Extracted {len(quarters)} years of historical data: {quarters[0]['quarter']} to {quarters[-1]['quarter']}")
+
+        return quarters
 
     # --- NSE ANNOUNCEMENTS -------------------------------------
 
@@ -517,7 +708,7 @@ class DataFetcher:
         ONLY uses DHFL fallback for DHFL itself.
         For all other companies: Screener.in + NSE, or clear error message.
         """
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
 
         # DHFL always uses hardcoded historical data
         if symbol == "DHFL":
@@ -550,7 +741,14 @@ class DataFetcher:
                 result["company_name"] = screener_data["company_name"]
             current["quarter"] = "Current"
             result["current"] = current
-            result["quarters"] = [current]
+
+            # Use historical quarters if available for trend chart
+            hist = screener_data.get("_historical_quarters", [])
+            if hist and len(hist) >= 2:
+                result["quarters"] = hist
+            else:
+                result["quarters"] = [current]
+
             result["data_source"] = "screener.in"
             return result
 

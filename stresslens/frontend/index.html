@@ -283,7 +283,8 @@
             margin: 20px 0;
             padding: 20px;
             border: 1px solid #ddd;
-            max-height: 350px;
+            height: 320px;
+            position: relative;
         }
 
         /* AI Analysis */
@@ -571,10 +572,16 @@
                 ${data.ai_analysis.agreed ? 'Analysis Complete' : 'Analysis Uncertain -- cross-verification flagged discrepancies'}
             </div>`;
 
-            const allFlags = [...new Set([
-                ...data.ai_analysis.gemini_flags,
-                ...data.ai_analysis.groq_flags
-            ])];
+            // Deduplicate flags: normalize text before comparing
+            const seen = new Set();
+            const allFlags = [];
+            for (const flag of [...(data.ai_analysis.gemini_flags || []), ...(data.ai_analysis.groq_flags || [])]) {
+                const key = flag.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    allFlags.push(flag);
+                }
+            }
 
             if (allFlags.length > 0) {
                 aiHTML += '<ul class="ai-flags">';
@@ -620,8 +627,31 @@
                 trendChart.destroy();
             }
 
+            if (!historical || historical.length === 0) {
+                document.getElementById('trendChart').parentElement.innerHTML =
+                    '<p style="text-align:center;color:#888;padding:40px;">No historical data available</p>';
+                return;
+            }
+
             const labels = historical.map(h => h.quarter);
             const scores = historical.map(h => h.score);
+
+            // Detect if last point is a crash point (score >= 60 and label contains FY2019)
+            const lastLabel = labels[labels.length - 1] || '';
+            const isCrashChart = lastLabel.includes('FY2019') && scores[scores.length - 1] >= 60;
+
+            // Point styling: larger red markers for high-stress points
+            const pointColors = scores.map((s, i) => {
+                if (isCrashChart && i === scores.length - 1) return '#8b0000';
+                if (s >= 81) return '#8b0000';
+                if (s >= 61) return '#cc0000';
+                if (s >= 31) return '#bf6a00';
+                return '#0a8043';
+            });
+            const pointSizes = scores.map((s, i) => {
+                if (isCrashChart && i === scores.length - 1) return 10;
+                return 5;
+            });
 
             trendChart = new Chart(ctx, {
                 type: 'line',
@@ -631,14 +661,12 @@
                         label: 'Stress Score',
                         data: scores,
                         borderColor: '#1a1a1a',
-                        backgroundColor: 'rgba(26, 26, 26, 0.05)',
+                        backgroundColor: 'rgba(204, 0, 0, 0.06)',
                         borderWidth: 2.5,
-                        pointBackgroundColor: scores.map(s =>
-                            s >= 81 ? '#8b0000' : s >= 61 ? '#cc0000' : s >= 31 ? '#bf6a00' : '#0a8043'
-                        ),
-                        pointBorderColor: '#1a1a1a',
-                        pointRadius: 5,
-                        pointHoverRadius: 7,
+                        pointBackgroundColor: pointColors,
+                        pointBorderColor: pointColors,
+                        pointRadius: pointSizes,
+                        pointHoverRadius: 8,
                         fill: true,
                         tension: 0.3,
                     }]
@@ -652,7 +680,30 @@
                             backgroundColor: '#1a1a1a',
                             titleFont: { family: 'Georgia' },
                             bodyFont: { family: 'Consolas' },
-                        }
+                            callbacks: {
+                                label: function(ctx) {
+                                    let label = `Stress: ${ctx.parsed.y}/100`;
+                                    if (isCrashChart && ctx.dataIndex === scores.length - 1) {
+                                        label += ' [CRASH ZONE]';
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        // Crash annotation label
+                        ...(isCrashChart ? {
+                            annotation: {
+                                annotations: {
+                                    crashLabel: {
+                                        type: 'label',
+                                        content: 'CRASH',
+                                        position: { x: 'end', y: 'start' },
+                                        color: '#8b0000',
+                                        font: { weight: 'bold', size: 12 }
+                                    }
+                                }
+                            }
+                        } : {})
                     },
                     scales: {
                         y: {
@@ -668,6 +719,19 @@
                     }
                 }
             });
+
+            // For crash charts, add a red label below the chart
+            if (isCrashChart) {
+                const container = document.getElementById('trendChart').parentElement;
+                const existing = container.querySelector('.crash-label');
+                if (!existing) {
+                    const lbl = document.createElement('div');
+                    lbl.className = 'crash-label';
+                    lbl.style.cssText = 'text-align:right;color:#8b0000;font-weight:700;font-size:12px;margin-top:4px;letter-spacing:1px;';
+                    lbl.textContent = 'CRASH BEGAN HERE -->';
+                    container.appendChild(lbl);
+                }
+            }
         }
     </script>
 </body>

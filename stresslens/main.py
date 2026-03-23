@@ -32,7 +32,7 @@ for _candidate in [
 else:
     load_dotenv()
 
-from data_fetcher import get_fetcher, DHFL_HISTORICAL
+from data_fetcher import get_fetcher, DHFL_HISTORICAL, normalize_symbol
 from scorer import calculate_total_stress, score_historical_quarters
 from llm_analyzer import analyze_with_gemini, analyze_with_groq, cross_verify
 from circuit_breaker import apply_circuit_breaker
@@ -57,18 +57,12 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 
-@app.get("/api/score/{symbol}")
+@app.get("/api/score/{symbol:path}")
 async def score_company(symbol: str):
     """
-    Main scoring endpoint.
-    1. Fetch data
-    2. Calculate quantitative score
-    3. Run LLM analysis
-    4. Check circuit breakers
-    5. Apply dynamic weights
-    6. Return complete response
+    Main scoring endpoint. Accepts NSE symbol or company name.
     """
-    symbol = symbol.upper().strip()
+    symbol = normalize_symbol(symbol)
 
     # 1. Fetch data
     fetcher = get_fetcher()
