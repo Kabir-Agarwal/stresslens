@@ -37,6 +37,7 @@ from scorer import calculate_total_stress, score_historical_quarters
 from llm_analyzer import analyze_with_gemini, analyze_with_groq, cross_verify
 from circuit_breaker import apply_circuit_breaker
 from weight_manager import get_weights, apply_weights
+import pipeline
 from pipeline import get_cached_score, store_score, get_stats, init_db
 
 app = FastAPI(title="StressLens", description="Forensic stress scoring for Indian listed companies")
@@ -102,6 +103,48 @@ async def company_count():
     """Return total company coverage count."""
     companies = get_company_list()
     return {"count": len(companies)}
+
+
+@app.get("/api/most-stressed")
+async def most_stressed(limit: int = 10):
+    """Return top N highest stress score companies from the database."""
+    init_db()
+    import sqlite3 as _sqlite3
+    conn = _sqlite3.connect(pipeline.DB_PATH)
+    conn.row_factory = _sqlite3.Row
+    rows = conn.execute(
+        "SELECT symbol, company_name, stress_score, risk_level, signals_json "
+        "FROM company_scores ORDER BY stress_score DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    results = []
+    for row in rows:
+        # Find the top contributing signal
+        top_signal = ""
+        try:
+            signals = json.loads(row["signals_json"]) if row["signals_json"] else {}
+            best_name, best_score = "", 0
+            for name, sig in signals.items():
+                s = sig.get("score", 0)
+                if s > best_score:
+                    best_score = s
+                    best_name = name
+            if best_name:
+                top_signal = f"{best_name}: {best_score}/{signals[best_name].get('max_score', '?')}"
+        except Exception:
+            pass
+
+        results.append({
+            "symbol": row["symbol"],
+            "company_name": row["company_name"],
+            "stress_score": row["stress_score"],
+            "risk_level": row["risk_level"],
+            "top_signal": top_signal,
+        })
+
+    return {"count": len(results), "companies": results}
 
 
 @app.get("/api/stats")

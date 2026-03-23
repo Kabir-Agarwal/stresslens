@@ -418,6 +418,12 @@
             </div>
         </section>
 
+        <section id="highRiskSection" style="display:none;margin-bottom:36px;">
+            <div class="section-title">High Risk Companies</div>
+            <div id="highRiskList" style="display:grid;gap:1px;background:#eee;border:1px solid #ddd;"></div>
+            <p style="font-size:11px;color:#aaa;margin-top:8px;">Based on scored companies in database. Run pipeline to expand coverage.</p>
+        </section>
+
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p>Running forensic analysis...</p>
@@ -482,6 +488,29 @@
                 if (d.count > 0) {
                     document.getElementById('coverageCount').textContent =
                         `Covering ${d.count.toLocaleString()} NSE listed companies`;
+                }
+            } catch(e) {}
+        })();
+
+        // Load high risk companies on page load
+        (async function() {
+            try {
+                const r = await fetch('/api/most-stressed?limit=5');
+                const d = await r.json();
+                if (d.companies && d.companies.length > 0) {
+                    const section = document.getElementById('highRiskSection');
+                    const list = document.getElementById('highRiskList');
+                    list.innerHTML = d.companies.map(c => {
+                        const color = c.stress_score >= 81 ? '#8b0000' : c.stress_score >= 61 ? '#cc0000' : c.stress_score >= 31 ? '#bf6a00' : '#0a8043';
+                        return `<div style="display:grid;grid-template-columns:90px 1fr 80px 120px;align-items:center;padding:12px 16px;background:#fff;cursor:pointer;font-size:14px;"
+                                     onclick="quickSearch('${c.symbol}')">
+                            <span style="font-family:Consolas,monospace;font-weight:700;">${c.symbol}</span>
+                            <span style="color:#333;">${c.company_name}</span>
+                            <span style="font-family:Consolas,monospace;font-weight:700;color:${color};text-align:right;">${c.stress_score}/100</span>
+                            <span style="font-size:11px;color:#888;text-align:right;">${c.top_signal || c.risk_level}</span>
+                        </div>`;
+                    }).join('');
+                    section.style.display = 'block';
                 }
             } catch(e) {}
         })();
