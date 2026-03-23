@@ -572,20 +572,36 @@
                 ${data.ai_analysis.agreed ? 'Analysis Complete' : 'Analysis Uncertain -- cross-verification flagged discrepancies'}
             </div>`;
 
-            // Deduplicate flags: normalize text before comparing
+            // Deduplicate flags using keyword fingerprinting
+            // Two flags about the same topic (e.g. "Altman Z-Score signals distress" vs
+            // "Altman Z-Score indicates distress zone") share keywords and are duplicates.
+            const topicKeys = [
+                'beneish', 'altman', 'piotroski', 'pledge', 'cash flow', 'cashflow',
+                'divergence', 'manipulation', 'distress', 'leverage', 'debt',
+                'promoter', 'auditor', 'sebi', 'default', 'downgrade'
+            ];
+            function flagFingerprint(text) {
+                const lower = text.toLowerCase();
+                const matched = topicKeys.filter(k => lower.includes(k));
+                return matched.length > 0 ? matched.sort().join('|') : lower.replace(/[^a-z0-9]/g, '');
+            }
+
             const seen = new Set();
             const allFlags = [];
             for (const flag of [...(data.ai_analysis.gemini_flags || []), ...(data.ai_analysis.groq_flags || [])]) {
-                const key = flag.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (!seen.has(key)) {
-                    seen.add(key);
+                const fp = flagFingerprint(flag);
+                if (!seen.has(fp)) {
+                    seen.add(fp);
                     allFlags.push(flag);
                 }
             }
 
-            if (allFlags.length > 0) {
+            // Limit to 5 bullet points max
+            const displayFlags = allFlags.slice(0, 5);
+
+            if (displayFlags.length > 0) {
                 aiHTML += '<ul class="ai-flags">';
-                for (const flag of allFlags) {
+                for (const flag of displayFlags) {
                     aiHTML += `<li>${flag}</li>`;
                 }
                 aiHTML += '</ul>';
