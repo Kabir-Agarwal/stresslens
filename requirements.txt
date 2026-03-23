@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+requests
+pandas
+numpy
+python-dotenv
+google-generativeai
+groq
+beautifulsoup4
+httpx
+apscheduler

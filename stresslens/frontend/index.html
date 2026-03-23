@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StressLens — Forensic Stress Intelligence</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            border-bottom: 3px solid #1a1a1a;
+            padding: 32px 0 20px;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 42px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            color: #1a1a1a;
+        }
+
+        .tagline {
+            font-size: 15px;
+            color: #666;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        /* Search */
+        .search-section {
+            text-align: center;
+            padding: 48px 0;
+        }
+
+        .search-section h2 {
+            font-size: 22px;
+            font-weight: 400;
+            margin-bottom: 24px;
+            color: #333;
+        }
+
+        .search-box {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 14px 20px;
+            font-size: 18px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            border: 2px solid #1a1a1a;
+            background: #fafafa;
+            outline: none;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .search-box input:focus {
+            background: #fff;
+            border-color: #0052cc;
+        }
+
+        .search-box button {
+            padding: 14px 32px;
+            font-size: 16px;
+            font-family: 'Georgia', serif;
+            background: #1a1a1a;
+            color: #fff;
+            border: 2px solid #1a1a1a;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .search-box button:hover { background: #333; }
+        .search-box button:disabled { background: #999; border-color: #999; cursor: wait; }
+
+        .quick-links {
+            margin-top: 16px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .quick-links a {
+            color: #0052cc;
+            text-decoration: none;
+            margin: 0 8px;
+            cursor: pointer;
+        }
+
+        .quick-links a:hover { text-decoration: underline; }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 48px 0;
+        }
+
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #eee;
+            border-top: 3px solid #1a1a1a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error */
+        .error-msg {
+            display: none;
+            text-align: center;
+            padding: 24px;
+            margin: 24px 0;
+            border: 1px solid #cc0000;
+            color: #cc0000;
+            background: #fff5f5;
+        }
+
+        /* Results */
+        .results {
+            display: none;
+            padding-bottom: 60px;
+        }
+
+        .company-header {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 28px;
+        }
+
+        .company-name {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .data-source {
+            font-size: 13px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        /* Score Display */
+        .score-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 36px;
+        }
+
+        .score-card {
+            text-align: center;
+            padding: 28px 20px;
+            border: 1px solid #ddd;
+        }
+
+        .score-card .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .score-card .value {
+            font-size: 52px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .score-card .sub {
+            font-size: 14px;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .score-green { color: #0a8043; }
+        .score-orange { color: #bf6a00; }
+        .score-red { color: #cc0000; }
+        .score-critical { color: #8b0000; animation: pulse 1.5s ease-in-out infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            border: 2px solid;
+        }
+
+        .badge-LOW { color: #0a8043; border-color: #0a8043; }
+        .badge-MEDIUM { color: #bf6a00; border-color: #bf6a00; }
+        .badge-HIGH { color: #cc0000; border-color: #cc0000; }
+        .badge-CRITICAL { color: #8b0000; border-color: #8b0000; background: #fff0f0; }
+
+        /* Section headers */
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 8px;
+            margin: 36px 0 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Signal breakdown */
+        .signal-row {
+            display: grid;
+            grid-template-columns: 200px 60px 1fr 80px;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+            gap: 12px;
+        }
+
+        .signal-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .signal-score {
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            text-align: right;
+        }
+
+        .signal-bar-track {
+            height: 10px;
+            background: #f0f0f0;
+            border-radius: 0;
+            overflow: hidden;
+        }
+
+        .signal-bar-fill {
+            height: 100%;
+            transition: width 0.6s ease;
+        }
+
+        .signal-verdict {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #666;
+            text-align: right;
+        }
+
+        .bar-green { background: #0a8043; }
+        .bar-orange { background: #bf6a00; }
+        .bar-red { background: #cc0000; }
+        .bar-critical { background: #8b0000; }
+
+        /* Chart */
+        .chart-container {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            max-height: 350px;
+        }
+
+        /* AI Analysis */
+        .ai-section {
+            margin: 20px 0;
+        }
+
+        .ai-agreement {
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ai-agreed { background: #f0f9f0; border-left: 4px solid #0a8043; }
+        .ai-disagreed { background: #fff8f0; border-left: 4px solid #bf6a00; }
+
+        .ai-flags {
+            padding: 0;
+            list-style: none;
+        }
+
+        .ai-flags li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .ai-flags li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #cc0000;
+            font-weight: bold;
+        }
+
+        .ai-summary {
+            margin-top: 16px;
+            padding: 20px;
+            background: #fafafa;
+            border: 1px solid #eee;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        /* Circuit Breakers */
+        .cb-alert {
+            padding: 16px 20px;
+            margin: 8px 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .cb-critical {
+            background: #fff0f0;
+            border-left: 4px solid #8b0000;
+            color: #8b0000;
+        }
+
+        .cb-high {
+            background: #fff5f0;
+            border-left: 4px solid #cc0000;
+            color: #cc0000;
+        }
+
+        .cb-none {
+            background: #f0f9f0;
+            border-left: 4px solid #0a8043;
+            color: #0a8043;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 3px solid #1a1a1a;
+            padding: 24px 0;
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        footer p {
+            font-size: 13px;
+            color: #888;
+            margin: 4px 0;
+        }
+
+        footer .brand {
+            font-size: 15px;
+            color: #1a1a1a;
+            font-weight: 700;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .score-panel { grid-template-columns: 1fr; }
+            .signal-row { grid-template-columns: 1fr 50px 1fr; }
+            .signal-verdict { display: none; }
+            .logo { font-size: 32px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">StressLens</div>
+            <div class="tagline">The warning signs were always there.</div>
+        </header>
+
+        <section class="search-section">
+            <h2>Forensic Stress Analysis for Indian Listed Companies</h2>
+            <div class="search-box">
+                <input type="text" id="symbolInput" placeholder="Enter NSE/BSE symbol e.g. RELIANCE"
+                       onkeypress="if(event.key==='Enter')searchCompany()">
+                <button id="searchBtn" onclick="searchCompany()">Analyze</button>
+            </div>
+            <div class="quick-links">
+                Try: <a onclick="quickSearch('DHFL')">DHFL</a>
+                <a onclick="quickSearch('RELIANCE')">RELIANCE</a>
+                <a onclick="quickSearch('YESBANK')">YESBANK</a>
+                <a onclick="quickSearch('TCS')">TCS</a>
+                <a onclick="quickSearch('SBIN')">SBIN</a>
+            </div>
+        </section>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Running forensic analysis...</p>
+        </div>
+
+        <div class="error-msg" id="errorMsg"></div>
+
+        <section class="results" id="results">
+            <div class="company-header">
+                <div class="company-name" id="companyName"></div>
+                <div class="data-source" id="dataSource"></div>
+            </div>
+
+            <div class="score-panel">
+                <div class="score-card">
+                    <div class="label">Stress Score</div>
+                    <div class="value" id="stressScore"></div>
+                    <div class="sub" id="riskBadge"></div>
+                </div>
+                <div class="score-card">
+                    <div class="label">Confidence</div>
+                    <div class="value" id="confidence"></div>
+                    <div class="sub" style="color: #666;">Percent</div>
+                </div>
+                <div class="score-card">
+                    <div class="label">Risk Level</div>
+                    <div class="value" id="riskLevel" style="font-size: 32px; padding-top: 10px;"></div>
+                    <div class="sub" id="aiAgreement"></div>
+                </div>
+            </div>
+
+            <div class="section-title">Signal Breakdown</div>
+            <div id="signalBreakdown"></div>
+
+            <div class="section-title">Stress Trend</div>
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+
+            <div class="section-title">StressLens Intelligence Engine</div>
+            <div class="ai-section" id="aiSection"></div>
+
+            <div class="section-title">Circuit Breakers</div>
+            <div id="circuitBreakers"></div>
+        </section>
+
+        <footer>
+            <p class="brand">StressLens — Forensic stress intelligence for Indian markets</p>
+            <p>This is a risk signal tool. Not investment advice.</p>
+        </footer>
+    </div>
+
+    <script>
+        let trendChart = null;
+
+        function quickSearch(symbol) {
+            document.getElementById('symbolInput').value = symbol;
+            searchCompany();
+        }
+
+        async function searchCompany() {
+            const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+            if (!symbol) return;
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('errorMsg').style.display = 'none';
+            document.getElementById('searchBtn').disabled = true;
+
+            try {
+                const resp = await fetch(`/api/score/${symbol}`);
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || 'Analysis failed');
+                }
+                const data = await resp.json();
+                renderResults(data);
+            } catch (e) {
+                document.getElementById('errorMsg').textContent = `Error: ${e.message}`;
+                document.getElementById('errorMsg').style.display = 'block';
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('searchBtn').disabled = false;
+            }
+        }
+
+        function getScoreColor(score) {
+            if (score >= 81) return 'score-critical';
+            if (score >= 61) return 'score-red';
+            if (score >= 31) return 'score-orange';
+            return 'score-green';
+        }
+
+        function getBarColor(score, max) {
+            const pct = score / max;
+            if (pct >= 0.8) return 'bar-critical';
+            if (pct >= 0.6) return 'bar-red';
+            if (pct >= 0.3) return 'bar-orange';
+            return 'bar-green';
+        }
+
+        function renderResults(data) {
+            // Company header
+            document.getElementById('companyName').textContent = `${data.symbol} — ${data.company_name}`;
+            document.getElementById('dataSource').textContent =
+                `Data source: ${data.data_source} | Last updated: ${new Date(data.last_updated).toLocaleString()}`;
+
+            // Score
+            const scoreEl = document.getElementById('stressScore');
+            scoreEl.textContent = data.stress_score;
+            scoreEl.className = `value ${getScoreColor(data.stress_score)}`;
+
+            document.getElementById('riskBadge').innerHTML =
+                `<span class="badge badge-${data.risk_level}">${data.risk_level}</span>`;
+
+            document.getElementById('confidence').textContent = data.confidence;
+            document.getElementById('confidence').className =
+                `value ${data.confidence >= 70 ? 'score-green' : 'score-orange'}`;
+
+            document.getElementById('riskLevel').textContent = data.risk_level;
+            document.getElementById('riskLevel').className =
+                `value badge-${data.risk_level}`;
+
+            const agreeText = data.ai_analysis.agreed ? 'Analysis Complete' : 'Analysis Uncertain';
+            document.getElementById('aiAgreement').textContent = agreeText;
+            document.getElementById('aiAgreement').style.color =
+                data.ai_analysis.agreed ? '#0a8043' : '#bf6a00';
+
+            // Signal breakdown
+            const signals = data.signals;
+            const signalData = [
+                { name: 'Beneish M-Score', score: signals.beneish.score, max: 25, verdict: signals.beneish.verdict },
+                { name: 'Altman Z-Score', score: signals.altman.score, max: 25, verdict: signals.altman.verdict },
+                { name: 'Piotroski F-Score', score: signals.piotroski.score, max: 20, verdict: signals.piotroski.verdict },
+                { name: 'Promoter Pledge', score: signals.pledge.score, max: 20, verdict: `${signals.pledge.current_pct}% pledged` },
+                { name: 'Cash Flow Divergence', score: signals.cashflow.score, max: 10, verdict: signals.cashflow.verdict },
+            ];
+
+            let signalHTML = '';
+            for (const s of signalData) {
+                const pct = (s.score / s.max * 100).toFixed(0);
+                signalHTML += `
+                    <div class="signal-row">
+                        <div class="signal-name">${s.name}</div>
+                        <div class="signal-score">${s.score}/${s.max}</div>
+                        <div class="signal-bar-track">
+                            <div class="signal-bar-fill ${getBarColor(s.score, s.max)}" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="signal-verdict">${s.verdict}</div>
+                    </div>`;
+            }
+            document.getElementById('signalBreakdown').innerHTML = signalHTML;
+
+            // Trend chart
+            renderChart(data.historical_scores);
+
+            // AI Analysis
+            let aiHTML = '';
+            aiHTML += `<div class="ai-agreement ${data.ai_analysis.agreed ? 'ai-agreed' : 'ai-disagreed'}">
+                ${data.ai_analysis.agreed ? 'Analysis Complete' : 'Analysis Uncertain -- cross-verification flagged discrepancies'}
+            </div>`;
+
+            const allFlags = [...new Set([
+                ...data.ai_analysis.gemini_flags,
+                ...data.ai_analysis.groq_flags
+            ])];
+
+            if (allFlags.length > 0) {
+                aiHTML += '<ul class="ai-flags">';
+                for (const flag of allFlags) {
+                    aiHTML += `<li>${flag}</li>`;
+                }
+                aiHTML += '</ul>';
+            }
+
+            if (data.ai_analysis.summary) {
+                // Strip any AI model name references from the summary
+                let summary = data.ai_analysis.summary
+                    .replace(/\(Analysis by \w+ fallback engine[^)]*\)/gi, '')
+                    .replace(/Gemini|Groq|GPT|LLM|fallback engine|API unavailable|quota exhausted/gi, '')
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+                aiHTML += `<div class="ai-summary">${summary}</div>`;
+            }
+
+            document.getElementById('aiSection').innerHTML = aiHTML;
+
+            // Circuit breakers
+            let cbHTML = '';
+            if (data.circuit_breakers && data.circuit_breakers.length > 0) {
+                for (const cb of data.circuit_breakers) {
+                    const cls = cb.severity === 'CRITICAL' ? 'cb-critical' : 'cb-high';
+                    cbHTML += `<div class="cb-alert ${cls}">
+                        [${cb.severity}] ${cb.label}
+                    </div>`;
+                }
+            } else {
+                cbHTML = '<div class="cb-alert cb-none">No recent circuit breaker alerts detected.</div>';
+            }
+            document.getElementById('circuitBreakers').innerHTML = cbHTML;
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        function renderChart(historical) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+
+            if (trendChart) {
+                trendChart.destroy();
+            }
+
+            const labels = historical.map(h => h.quarter);
+            const scores = historical.map(h => h.score);
+
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Stress Score',
+                        data: scores,
+                        borderColor: '#1a1a1a',
+                        backgroundColor: 'rgba(26, 26, 26, 0.05)',
+                        borderWidth: 2.5,
+                        pointBackgroundColor: scores.map(s =>
+                            s >= 81 ? '#8b0000' : s >= 61 ? '#cc0000' : s >= 31 ? '#bf6a00' : '#0a8043'
+                        ),
+                        pointBorderColor: '#1a1a1a',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1a1a1a',
+                            titleFont: { family: 'Georgia' },
+                            bodyFont: { family: 'Consolas' },
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: '#f0f0f0' },
+                            ticks: { font: { family: 'Consolas', size: 11 } },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { family: 'Georgia', size: 11 } },
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
