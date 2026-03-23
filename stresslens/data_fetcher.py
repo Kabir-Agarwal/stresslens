@@ -806,3 +806,58 @@ def get_fetcher() -> DataFetcher:
     if _fetcher is None:
         _fetcher = DataFetcher()
     return _fetcher
+
+
+# --- NSE COMPANY LIST (for autocomplete) ---
+
+_company_list = None
+_company_list_time = 0
+
+
+def get_company_list() -> List[Dict]:
+    """
+    Fetch full NSE company list from EQUITY_L.csv.
+    Cached for 24 hours.
+    """
+    global _company_list, _company_list_time
+    import time as _time
+
+    if _company_list and (_time.time() - _company_list_time < 86400):
+        return _company_list
+
+    companies = []
+    try:
+        resp = requests.get(
+            "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            lines = resp.text.strip().split("\n")
+            for line in lines[1:]:  # skip header
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    symbol = parts[0].strip()
+                    name = parts[1].strip()
+                    if symbol and name:
+                        companies.append({"symbol": symbol, "name": name})
+            print(f"[DataFetcher] Loaded {len(companies)} NSE companies")
+    except Exception as e:
+        print(f"[DataFetcher] NSE company list fetch failed: {e}")
+
+    if not companies:
+        # Fallback: use NAME_TO_SYMBOL keys
+        for name, sym in NAME_TO_SYMBOL.items():
+            companies.append({"symbol": sym, "name": name.title()})
+        # Deduplicate by symbol
+        seen = set()
+        deduped = []
+        for c in companies:
+            if c["symbol"] not in seen:
+                seen.add(c["symbol"])
+                deduped.append(c)
+        companies = deduped
+
+    _company_list = companies
+    _company_list_time = _time.time()
+    return _company_list

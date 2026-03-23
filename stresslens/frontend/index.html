@@ -396,9 +396,17 @@
 
         <section class="search-section">
             <h2>Forensic Stress Analysis for Indian Listed Companies</h2>
-            <div class="search-box">
-                <input type="text" id="symbolInput" placeholder="Enter NSE/BSE symbol e.g. RELIANCE"
-                       onkeypress="if(event.key==='Enter')searchCompany()">
+            <p id="coverageCount" style="font-size:13px;color:#888;margin-bottom:16px;"></p>
+            <div class="search-box" style="position:relative;">
+                <div style="flex:1;position:relative;">
+                    <input type="text" id="symbolInput" placeholder="Enter company name or NSE symbol"
+                           onkeypress="if(event.key==='Enter')searchCompany()"
+                           oninput="onSearchInput(this.value)"
+                           onfocus="onSearchInput(this.value)"
+                           autocomplete="off"
+                           style="width:100%;">
+                    <div id="autocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:2px solid #1a1a1a;border-top:none;z-index:100;max-height:250px;overflow-y:auto;"></div>
+                </div>
                 <button id="searchBtn" onclick="searchCompany()">Analyze</button>
             </div>
             <div class="quick-links">
@@ -464,13 +472,62 @@
 
     <script>
         let trendChart = null;
+        let searchTimeout = null;
+
+        // Load coverage count on page load
+        (async function() {
+            try {
+                const r = await fetch('/api/search?q=');
+                const d = await r.json();
+                if (d.count > 0) {
+                    document.getElementById('coverageCount').textContent =
+                        `Covering ${d.count.toLocaleString()} NSE listed companies`;
+                }
+            } catch(e) {}
+        })();
+
+        function onSearchInput(value) {
+            clearTimeout(searchTimeout);
+            const ac = document.getElementById('autocomplete');
+            if (!value || value.length < 1) { ac.style.display = 'none'; return; }
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const r = await fetch(`/api/search?q=${encodeURIComponent(value)}`);
+                    const d = await r.json();
+                    if (d.results.length === 0) { ac.style.display = 'none'; return; }
+                    ac.innerHTML = d.results.map(c =>
+                        `<div style="padding:10px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid #eee;font-family:Georgia,serif;"
+                              onmousedown="selectCompany('${c.symbol}','${c.name.replace(/'/g, "\\'")}')">
+                            <strong style="font-family:Consolas,monospace;">${c.symbol}</strong>
+                            <span style="color:#666;margin-left:8px;">${c.name}</span>
+                        </div>`
+                    ).join('');
+                    ac.style.display = 'block';
+                } catch(e) { ac.style.display = 'none'; }
+            }, 200);
+        }
+
+        function selectCompany(symbol, name) {
+            document.getElementById('symbolInput').value = symbol;
+            document.getElementById('autocomplete').style.display = 'none';
+            searchCompany();
+        }
+
+        // Hide autocomplete when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-box')) {
+                document.getElementById('autocomplete').style.display = 'none';
+            }
+        });
 
         function quickSearch(symbol) {
             document.getElementById('symbolInput').value = symbol;
+            document.getElementById('autocomplete').style.display = 'none';
             searchCompany();
         }
 
         async function searchCompany() {
+            document.getElementById('autocomplete').style.display = 'none';
             const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
             if (!symbol) return;
 

@@ -32,7 +32,7 @@ for _candidate in [
 else:
     load_dotenv()
 
-from data_fetcher import get_fetcher, DHFL_HISTORICAL, normalize_symbol
+from data_fetcher import get_fetcher, DHFL_HISTORICAL, normalize_symbol, get_company_list
 from scorer import calculate_total_stress, score_historical_quarters
 from llm_analyzer import analyze_with_gemini, analyze_with_groq, cross_verify
 from circuit_breaker import apply_circuit_breaker
@@ -55,6 +55,36 @@ async def serve_frontend():
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/search")
+async def search_companies(q: str = ""):
+    """Autocomplete search across all NSE listed companies."""
+    companies = get_company_list()
+    if not q or len(q) < 1:
+        return {"count": len(companies), "results": []}
+    query = q.lower().strip()
+    # Score matches: symbol prefix > name prefix > substring
+    scored = []
+    for c in companies:
+        sym = c["symbol"].lower()
+        name = c["name"].lower()
+        if sym.startswith(query):
+            scored.append((0, c))  # best: symbol starts with query
+        elif name.startswith(query):
+            scored.append((1, c))  # good: name starts with query
+        elif query in name or query in sym:
+            scored.append((2, c))  # ok: substring match
+    scored.sort(key=lambda x: x[0])
+    matches = [s[1] for s in scored[:10]]
+    return {"count": len(companies), "results": matches}
+
+
+@app.get("/api/companies/count")
+async def company_count():
+    """Return total company coverage count."""
+    companies = get_company_list()
+    return {"count": len(companies)}
 
 
 @app.get("/api/score/{symbol:path}")
