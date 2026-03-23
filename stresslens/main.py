@@ -37,8 +37,25 @@ from scorer import calculate_total_stress, score_historical_quarters
 from llm_analyzer import analyze_with_gemini, analyze_with_groq, cross_verify
 from circuit_breaker import apply_circuit_breaker
 from weight_manager import get_weights, apply_weights
+from pipeline import get_cached_score, store_score, get_stats, init_db
 
 app = FastAPI(title="StressLens", description="Forensic stress scoring for Indian listed companies")
+
+# Initialize database on startup
+init_db()
+
+# Schedule weekly pipeline: every Sunday at 2am
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from pipeline import run_pipeline
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(run_pipeline, "cron", day_of_week="sun", hour=2, minute=0,
+                      id="weekly_pipeline", replace_existing=True)
+    scheduler.start()
+    print("[Scheduler] Weekly pipeline scheduled: Sundays at 2:00 AM")
+except Exception as e:
+    print(f"[Scheduler] Failed to start: {e}")
 
 # Serve frontend static files
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
@@ -87,14 +104,70 @@ async def company_count():
     return {"count": len(companies)}
 
 
+@app.get("/api/stats")
+async def pipeline_stats():
+    """Return pipeline statistics and coverage."""
+    return get_stats()
+
+
+@app.get("/api/pipeline/start")
+async def start_pipeline(max: int = None):
+    """Trigger the background pipeline manually. Optional ?max=N to limit."""
+    import threading
+    from pipeline import run_pipeline
+
+    def _run():
+        run_pipeline(max_companies=max, delay=2.0)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return {
+        "status": "started",
+        "max_companies": max,
+        "message": "Pipeline running in background. Check /api/stats for progress.",
+    }
+
+
 @app.get("/api/score/{symbol:path}")
 async def score_company(symbol: str):
     """
     Main scoring endpoint. Accepts NSE symbol or company name.
+    Checks database cache first; fetches live if cache is stale.
     """
     symbol = normalize_symbol(symbol)
 
-    # 1. Fetch data
+    # Check database cache first (skip for DHFL which uses hardcoded data)
+    if symbol != "DHFL":
+        cached = get_cached_score(symbol, max_age_days=7)
+        if cached:
+            # Return cached result with minimal AI analysis wrapper
+            return {
+                "symbol": cached["symbol"],
+                "company_name": cached["company_name"],
+                "data_source": cached["data_source"],
+                "stress_score": cached["stress_score"],
+                "risk_level": cached["risk_level"],
+                "confidence": 75.0,
+                "signals": cached["signals"],
+                "ai_analysis": {
+                    "gemini_flags": [],
+                    "groq_flags": [],
+                    "agreed": True,
+                    "uncertainty": False,
+                    "summary": f"{cached['company_name']} has a cached stress score of {cached['stress_score']}/100 ({cached['risk_level']}).",
+                    "gemini_severity": "N/A",
+                    "groq_severity": "N/A",
+                },
+                "circuit_breakers": [],
+                "circuit_breaker_adjusted": False,
+                "historical_scores": cached.get("historical_scores", []),
+                "weights": get_weights(),
+                "data_warnings": [],
+                "last_updated": cached["last_updated"],
+                "cached": True,
+            }
+
+    # Live fetch
     fetcher = get_fetcher()
     company_data = fetcher.get_company_data(symbol)
     quarters = company_data.get("quarters", [])
@@ -107,24 +180,24 @@ async def score_company(symbol: str):
     current = quarters[-1]
     previous = quarters[-2] if len(quarters) >= 2 else None
 
-    # 2. Calculate quantitative score
+    # Calculate quantitative score
     score_result = calculate_total_stress(current, previous)
 
-    # 3. Run LLM analysis
+    # Run LLM analysis
     gemini_result = analyze_with_gemini(company_data["company_name"], score_result)
     groq_result = analyze_with_groq(company_data["company_name"], score_result)
     cross_result = cross_verify(gemini_result, groq_result)
 
-    # 4. Circuit breaker check
+    # Circuit breaker check
     cb_result = apply_circuit_breaker(score_result["stress_score"], symbol)
 
-    # 5. Apply dynamic weights for confidence
+    # Apply dynamic weights for confidence
     weighted_confidence = apply_weights(
         gemini_result.get("confidence", 50),
         groq_result.get("confidence", 50),
     )
 
-    # 6. Historical scores if available
+    # Historical scores
     historical = []
     if len(quarters) > 1:
         hist_results = score_historical_quarters(quarters)
@@ -141,6 +214,20 @@ async def score_company(symbol: str):
         risk_level = "MEDIUM"
     else:
         risk_level = "LOW"
+
+    # Store in database for future cache hits
+    try:
+        store_score(
+            symbol=symbol,
+            company_name=company_data["company_name"],
+            stress_score=final_score,
+            risk_level=risk_level,
+            signals=score_result["signals"],
+            historical=historical,
+            data_source=company_data.get("data_source", "live"),
+        )
+    except Exception:
+        pass  # Don't fail the request if DB write fails
 
     return {
         "symbol": symbol,
@@ -165,6 +252,7 @@ async def score_company(symbol: str):
         "weights": get_weights(),
         "data_warnings": errors,
         "last_updated": datetime.now().isoformat(),
+        "cached": False,
     }
 
 
