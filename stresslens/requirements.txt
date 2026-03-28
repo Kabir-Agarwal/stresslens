@@ -9,3 +9,5 @@ groq
 beautifulsoup4
 httpx
 apscheduler
+kiteconnect
+websocket-client

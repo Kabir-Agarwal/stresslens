@@ -1,5 +1,5 @@
 """
-StressLens — Forensic Stress Scoring System for Indian Listed Companies
+StressLens + TradeMind — Forensic Stress Scoring & Trading Journal
 Main FastAPI application.
 """
 
@@ -12,8 +12,8 @@ from typing import Optional
 # Add stresslens directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -40,10 +40,25 @@ from weight_manager import get_weights, apply_weights
 import pipeline
 from pipeline import get_cached_score, store_score, get_stats, init_db
 
-app = FastAPI(title="StressLens", description="Forensic stress scoring for Indian listed companies")
+# TradeMind imports
+from kite_auth import (
+    get_login_url, exchange_request_token, get_auth_status,
+    get_valid_token, logout, is_demo_mode, get_kite_client, init_auth_db,
+)
+from trade_sync import init_trades_db, sync_trades, get_trades, get_trade_by_id
+from dummy_data import load_demo_trades
+from market_context import init_market_context_db, enrich_all_trades
 
-# Initialize database on startup
+app = FastAPI(
+    title="StressLens + TradeMind",
+    description="Forensic stress scoring for Indian listed companies & trading journal for retail traders",
+)
+
+# Initialize all databases on startup
 init_db()
+init_auth_db()
+init_trades_db()
+init_market_context_db()
 
 # Schedule weekly pipeline: every Sunday at 2am
 try:
@@ -345,6 +360,133 @@ async def validate_dhfl():
 
     return validation
 
+
+# =========================================================================
+# TRADEMIND ENDPOINTS
+# =========================================================================
+
+# --- Auth ---
+
+@app.get("/auth/login")
+async def auth_login():
+    """Return Zerodha OAuth login URL."""
+    try:
+        url = get_login_url()
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/auth/callback")
+async def auth_callback(request_token: str = "", status: str = ""):
+    """Handle Zerodha OAuth callback. Exchange request_token for access_token."""
+    if status != "success" or not request_token:
+        raise HTTPException(status_code=400, detail="Authentication failed or cancelled.")
+    try:
+        result = exchange_request_token(request_token)
+        return RedirectResponse(url="/dashboard", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Token exchange failed: {str(e)}")
+
+
+@app.get("/auth/status")
+async def auth_status():
+    """Return current authentication status."""
+    return get_auth_status()
+
+
+@app.get("/auth/logout")
+async def auth_logout():
+    """Clear session and log out."""
+    try:
+        logout()
+        return {"message": "Logged out successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Dashboard ---
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def serve_dashboard():
+    """Serve the TradeMind dashboard."""
+    dashboard_path = os.path.join(FRONTEND_DIR, "dashboard.html")
+    try:
+        with open(dashboard_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+
+
+# --- Trades ---
+
+@app.get("/api/trades/sync")
+async def api_sync_trades():
+    """Trigger full trade sync from Zerodha."""
+    session = get_valid_token()
+    if not session:
+        return {"synced": 0, "message": "Not authenticated. Please login first."}
+
+    kite = get_kite_client()
+    result = sync_trades(session["user_id"], kite)
+
+    # Also enrich trades with market context
+    if result["synced"] > 0:
+        try:
+            enrich_all_trades(session["user_id"])
+        except Exception:
+            pass  # Don't fail if enrichment fails
+
+    return result
+
+
+@app.get("/api/trades")
+async def api_get_trades(symbol: str = None, from_date: str = None,
+                         to_date: str = None, direction: str = None):
+    """Return all trades for the authenticated user with optional filters."""
+    session = get_valid_token()
+    if not session:
+        return {"trades": [], "message": "Not authenticated."}
+
+    trades = get_trades(
+        user_id=session["user_id"],
+        symbol=symbol,
+        from_date=from_date,
+        to_date=to_date,
+        direction=direction,
+    )
+    return {"trades": trades, "count": len(trades)}
+
+
+@app.get("/api/trades/{trade_id}")
+async def api_get_trade(trade_id: int):
+    """Return a single trade with full details."""
+    session = get_valid_token()
+    if not session:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+
+    trade = get_trade_by_id(session["user_id"], trade_id)
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found.")
+    return trade
+
+
+@app.post("/api/trades/load-demo")
+async def api_load_demo():
+    """Load 50 dummy trades for demo user."""
+    try:
+        result = load_demo_trades(user_id="demo")
+        # Auto-create demo session if not exists
+        if not get_valid_token("demo"):
+            exchange_request_token("demo_token")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load demo data: {str(e)}")
+
+
+# =========================================================================
+# STRESSLENS ORIGINAL ENDPOINTS (continued)
+# =========================================================================
 
 def run_validation():
     """CLI validation runner."""

@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeMind — Trading Journal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navigation */
+        nav {
+            border-bottom: 3px solid #1a1a1a;
+            padding: 20px 0 16px;
+            display: flex;
+            align-items: baseline;
+            gap: 32px;
+        }
+
+        nav .brand {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #888;
+            text-decoration: none;
+        }
+
+        nav .brand:hover { color: #1a1a1a; }
+
+        nav .brand.active {
+            color: #1a1a1a;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 2px;
+        }
+
+        /* Header */
+        header {
+            padding: 32px 0 20px;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 42px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            color: #1a1a1a;
+        }
+
+        .tagline {
+            font-size: 15px;
+            color: #666;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        /* Auth section */
+        .auth-section {
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        .auth-section h2 {
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 12px;
+        }
+
+        .auth-section p {
+            color: #666;
+            margin-bottom: 28px;
+            font-size: 15px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 36px;
+            font-size: 16px;
+            font-family: 'Georgia', serif;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            border: 2px solid #1a1a1a;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        .btn-primary:hover { background: #333; }
+        .btn-primary:disabled { background: #999; border-color: #999; cursor: wait; }
+
+        .btn-secondary {
+            background: #fff;
+            color: #1a1a1a;
+        }
+
+        .btn-secondary:hover { background: #f5f5f5; }
+
+        .btn-danger {
+            background: #fff;
+            color: #cc0000;
+            border-color: #cc0000;
+        }
+
+        .btn-danger:hover { background: #fff5f5; }
+
+        .btn-sm {
+            padding: 8px 20px;
+            font-size: 13px;
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 24px;
+        }
+
+        .status-bar .user-info {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-bar .user-info strong {
+            color: #1a1a1a;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Stats row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 24px 16px;
+            border: 1px solid #ddd;
+        }
+
+        .stat-card .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+            margin-bottom: 6px;
+        }
+
+        .stat-card .value {
+            font-size: 36px;
+            font-weight: 700;
+            line-height: 1;
+            font-family: 'Consolas', monospace;
+        }
+
+        .stat-card .sub {
+            font-size: 12px;
+            margin-top: 6px;
+            color: #666;
+        }
+
+        .positive { color: #0a8043; }
+        .negative { color: #cc0000; }
+        .neutral { color: #1a1a1a; }
+
+        /* Trades table */
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 8px;
+            margin: 28px 0 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .trades-table thead th {
+            text-align: left;
+            padding: 12px 10px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #888;
+            border-bottom: 2px solid #1a1a1a;
+            font-weight: 600;
+        }
+
+        .trades-table tbody tr {
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .trades-table tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .trades-table td {
+            padding: 12px 10px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .trades-table .sym {
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .trades-table .dir-long {
+            color: #0a8043;
+            font-weight: 600;
+        }
+
+        .trades-table .dir-short {
+            color: #cc0000;
+            font-weight: 600;
+        }
+
+        .pnl-positive {
+            color: #0a8043;
+            font-weight: 700;
+        }
+
+        .pnl-negative {
+            color: #cc0000;
+            font-weight: 700;
+        }
+
+        .emotion-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #ddd;
+            color: #666;
+            font-family: 'Georgia', serif;
+        }
+
+        .emotion-revenge {
+            border-color: #cc0000;
+            color: #cc0000;
+            background: #fff5f5;
+        }
+
+        .emotion-fomo {
+            border-color: #bf6a00;
+            color: #bf6a00;
+            background: #fff8f0;
+        }
+
+        .emotion-disciplined {
+            border-color: #0a8043;
+            color: #0a8043;
+            background: #f0f9f0;
+        }
+
+        /* Loading & messages */
+        .loading-overlay {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid #eee;
+            border-top: 3px solid #1a1a1a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .message {
+            padding: 16px 20px;
+            margin: 16px 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .message-success {
+            background: #f0f9f0;
+            border-left: 4px solid #0a8043;
+            color: #0a8043;
+        }
+
+        .message-error {
+            background: #fff5f5;
+            border-left: 4px solid #cc0000;
+            color: #cc0000;
+        }
+
+        .message-info {
+            background: #f0f5ff;
+            border-left: 4px solid #0052cc;
+            color: #0052cc;
+        }
+
+        /* Demo badge */
+        .demo-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            background: #fff8f0;
+            border: 1px solid #bf6a00;
+            color: #bf6a00;
+            margin-left: 8px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 400;
+            margin-bottom: 12px;
+            color: #666;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 3px solid #1a1a1a;
+            padding: 24px 0;
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        footer p {
+            font-size: 13px;
+            color: #888;
+            margin: 4px 0;
+        }
+
+        footer .brand {
+            font-size: 15px;
+            color: #1a1a1a;
+            font-weight: 700;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .trades-table { font-size: 12px; }
+            .trades-table td, .trades-table th { padding: 8px 6px; }
+            .logo { font-size: 32px; }
+            nav { flex-wrap: wrap; gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="/" class="brand">StressLens</a>
+            <a href="/dashboard" class="brand active">TradeMind</a>
+        </nav>
+
+        <header>
+            <div class="logo">TradeMind</div>
+            <div class="tagline">Know your patterns. Master your edge.</div>
+        </header>
+
+        <!-- Not Authenticated -->
+        <div id="authSection" class="auth-section" style="display:none;">
+            <h2>Connect Your Trading Account</h2>
+            <p>Link your Zerodha account to automatically import trades and discover your behavioral patterns.</p>
+            <a id="connectBtn" class="btn btn-primary" href="#">Connect Zerodha</a>
+            <div style="margin-top:20px;">
+                <button class="btn btn-secondary btn-sm" onclick="loadDemo()">Try with Demo Data</button>
+            </div>
+        </div>
+
+        <!-- Authenticated Dashboard -->
+        <div id="dashboard" style="display:none;">
+            <div class="status-bar">
+                <div class="user-info">
+                    Logged in as <strong id="userId">—</strong>
+                    <span id="demoBadge" class="demo-badge" style="display:none;">Demo Mode</span>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-secondary btn-sm" onclick="loadDemo()">Load Demo Data</button>
+                    <button class="btn btn-secondary btn-sm" onclick="syncTrades()">Sync Trades</button>
+                    <button class="btn btn-danger btn-sm" onclick="doLogout()">Logout</button>
+                </div>
+            </div>
+
+            <div id="messageArea"></div>
+
+            <!-- Stats -->
+            <div class="stats-row" id="statsRow">
+                <div class="stat-card">
+                    <div class="label">Total Trades</div>
+                    <div class="value neutral" id="statTotal">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Win Rate</div>
+                    <div class="value neutral" id="statWinRate">—</div>
+                    <div class="sub" id="statWinRateSub"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Total P&L</div>
+                    <div class="value" id="statPnl">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Avg P&L / Trade</div>
+                    <div class="value" id="statAvgPnl">—</div>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div class="loading-overlay" id="loading">
+                <div class="spinner"></div>
+                <p>Loading trades...</p>
+            </div>
+
+            <!-- Trades Table -->
+            <div class="section-title">Trade Log</div>
+            <div id="tradesArea">
+                <div class="empty-state" id="emptyState">
+                    <h3>No trades yet</h3>
+                    <p>Sync your Zerodha trades or load demo data to get started.</p>
+                </div>
+                <table class="trades-table" id="tradesTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Symbol</th>
+                            <th>Direction</th>
+                            <th>Qty</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>P&L</th>
+                            <th>Emotion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradesBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer>
+            <p class="brand">TradeMind — A trading journal for the disciplined trader</p>
+            <p>Part of the StressLens ecosystem. Not investment advice.</p>
+        </footer>
+    </div>
+
+    <script>
+        let currentUserId = null;
+
+        // ── Init ──
+        (async function init() {
+            try {
+                const resp = await fetch('/auth/status');
+                const data = await resp.json();
+                if (data.authenticated) {
+                    currentUserId = data.user_id;
+                    showDashboard(data);
+                    await loadTrades();
+                } else {
+                    showAuth();
+                }
+            } catch (e) {
+                showAuth();
+            }
+        })();
+
+        async function showAuth() {
+            document.getElementById('authSection').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+            // Get login URL
+            try {
+                const resp = await fetch('/auth/login');
+                const data = await resp.json();
+                document.getElementById('connectBtn').href = data.url;
+            } catch (e) {}
+        }
+
+        function showDashboard(authData) {
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('userId').textContent = authData.user_id;
+            if (authData.demo_mode) {
+                document.getElementById('demoBadge').style.display = 'inline-block';
+            }
+        }
+
+        function showMessage(text, type) {
+            const area = document.getElementById('messageArea');
+            area.innerHTML = `<div class="message message-${type}">${text}</div>`;
+            setTimeout(() => { area.innerHTML = ''; }, 5000);
+        }
+
+        // ── Load Trades ──
+        async function loadTrades() {
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const resp = await fetch('/api/trades');
+                const data = await resp.json();
+                if (data.trades && data.trades.length > 0) {
+                    renderTrades(data.trades);
+                    computeStats(data.trades);
+                } else {
+                    document.getElementById('emptyState').style.display = 'block';
+                    document.getElementById('tradesTable').style.display = 'none';
+                }
+            } catch (e) {
+                showMessage('Failed to load trades: ' + e.message, 'error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderTrades(trades) {
+            const tbody = document.getElementById('tradesBody');
+            tbody.innerHTML = '';
+            for (const t of trades) {
+                const date = new Date(t.entry_time).toLocaleDateString('en-IN', {
+                    day: '2-digit', month: 'short', year: '2-digit'
+                });
+                const time = new Date(t.entry_time).toLocaleTimeString('en-IN', {
+                    hour: '2-digit', minute: '2-digit'
+                });
+                const dirClass = t.direction === 'LONG' ? 'dir-long' : 'dir-short';
+                const pnlClass = t.pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+                const pnlSign = t.pnl >= 0 ? '+' : '';
+                let emotionHtml = '';
+                if (t.emotion_tag) {
+                    let eCls = 'emotion-tag';
+                    if (t.emotion_tag === 'revenge') eCls += ' emotion-revenge';
+                    else if (t.emotion_tag === 'fomo') eCls += ' emotion-fomo';
+                    else if (t.emotion_tag === 'disciplined') eCls += ' emotion-disciplined';
+                    emotionHtml = `<span class="${eCls}">${t.emotion_tag}</span>`;
+                }
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${date} ${time}</td>
+                        <td class="sym">${t.symbol}</td>
+                        <td class="${dirClass}">${t.direction}</td>
+                        <td>${t.quantity}</td>
+                        <td>${formatPrice(t.entry_price)}</td>
+                        <td>${formatPrice(t.exit_price)}</td>
+                        <td class="${pnlClass}">${pnlSign}${formatPrice(t.pnl)}</td>
+                        <td>${emotionHtml}</td>
+                    </tr>`;
+            }
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('tradesTable').style.display = 'table';
+        }
+
+        function computeStats(trades) {
+            const total = trades.length;
+            const wins = trades.filter(t => t.pnl > 0).length;
+            const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+            const avgPnl = total > 0 ? totalPnl / total : 0;
+            const winRate = total > 0 ? (wins / total * 100) : 0;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statWinRate').textContent = winRate.toFixed(1) + '%';
+            document.getElementById('statWinRate').className = `value ${winRate >= 50 ? 'positive' : 'negative'}`;
+            document.getElementById('statWinRateSub').textContent = `${wins}W / ${total - wins}L`;
+
+            document.getElementById('statPnl').textContent = formatPrice(totalPnl);
+            document.getElementById('statPnl').className = `value ${totalPnl >= 0 ? 'positive' : 'negative'}`;
+
+            document.getElementById('statAvgPnl').textContent = formatPrice(avgPnl);
+            document.getElementById('statAvgPnl').className = `value ${avgPnl >= 0 ? 'positive' : 'negative'}`;
+        }
+
+        function formatPrice(n) {
+            if (n === undefined || n === null) return '—';
+            const abs = Math.abs(n);
+            if (abs >= 10000000) return (n / 10000000).toFixed(2) + ' Cr';
+            if (abs >= 100000) return (n / 100000).toFixed(2) + ' L';
+            return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        }
+
+        // ── Actions ──
+        async function loadDemo() {
+            showMessage('Loading demo trades...', 'info');
+            try {
+                const resp = await fetch('/api/trades/load-demo', { method: 'POST' });
+                const data = await resp.json();
+                showMessage(`${data.message}`, 'success');
+                // If not authenticated yet, auto-login as demo
+                if (!currentUserId) {
+                    await fetch('/auth/callback?request_token=demo_token&status=success');
+                    const status = await (await fetch('/auth/status')).json();
+                    if (status.authenticated) {
+                        currentUserId = status.user_id;
+                        showDashboard(status);
+                    }
+                }
+                await loadTrades();
+            } catch (e) {
+                showMessage('Failed to load demo data: ' + e.message, 'error');
+            }
+        }
+
+        async function syncTrades() {
+            showMessage('Syncing trades from Zerodha...', 'info');
+            try {
+                const resp = await fetch('/api/trades/sync');
+                const data = await resp.json();
+                showMessage(data.message, data.synced > 0 ? 'success' : 'info');
+                if (data.synced > 0) {
+                    await loadTrades();
+                }
+            } catch (e) {
+                showMessage('Sync failed: ' + e.message, 'error');
+            }
+        }
+
+        async function doLogout() {
+            try {
+                await fetch('/auth/logout');
+                currentUserId = null;
+                showAuth();
+            } catch (e) {}
+        }
+    </script>
+</body>
+</html>
