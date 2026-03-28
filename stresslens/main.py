@@ -47,7 +47,11 @@ from kite_auth import (
 )
 from trade_sync import init_trades_db, sync_trades, get_trades, get_trade_by_id
 from dummy_data import load_demo_trades
-from market_context import init_market_context_db, enrich_all_trades
+from market_context import init_market_context_db
+from market_context import enrich_all_trades as enrich_all_market_context
+from ohlcv_fetcher import init_ohlcv_db
+from pattern_backtest import init_win_rates_db, get_all_win_rates
+from trade_enricher import enrich_all_trades as enrich_all_patterns
 
 app = FastAPI(
     title="StressLens + TradeMind",
@@ -59,6 +63,8 @@ init_db()
 init_auth_db()
 init_trades_db()
 init_market_context_db()
+init_ohlcv_db()
+init_win_rates_db()
 
 # Schedule weekly pipeline: every Sunday at 2am
 try:
@@ -430,12 +436,16 @@ async def api_sync_trades():
     kite = get_kite_client()
     result = sync_trades(session["user_id"], kite)
 
-    # Also enrich trades with market context
+    # Also enrich trades with market context + patterns
     if result["synced"] > 0:
         try:
-            enrich_all_trades(session["user_id"])
+            enrich_all_market_context(session["user_id"])
         except Exception:
-            pass  # Don't fail if enrichment fails
+            pass
+        try:
+            enrich_all_patterns(session["user_id"], kite)
+        except Exception:
+            pass
 
     return result
 
@@ -473,15 +483,40 @@ async def api_get_trade(trade_id: int):
 
 @app.post("/api/trades/load-demo")
 async def api_load_demo():
-    """Load 50 dummy trades for demo user."""
+    """Load 50 dummy trades for demo user, then auto-enrich with patterns."""
     try:
         result = load_demo_trades(user_id="demo")
         # Auto-create demo session if not exists
         if not get_valid_token("demo"):
             exchange_request_token("demo_token")
+        # Auto-enrich with candlestick patterns
+        try:
+            enrich_result = enrich_all_patterns("demo")
+            result["patterns_found"] = enrich_result.get("patterns_found", 0)
+            result["message"] += f" | {enrich_result['message']}"
+        except Exception as e:
+            print(f"[Demo] Pattern enrichment error: {e}")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load demo data: {str(e)}")
+
+
+@app.get("/api/trades/enrich")
+async def api_enrich_trades():
+    """Run pattern enrichment on all trades for the authenticated user."""
+    session = get_valid_token()
+    if not session:
+        return {"enriched": 0, "message": "Not authenticated."}
+
+    kite = get_kite_client()
+    result = enrich_all_patterns(session["user_id"], kite)
+    return result
+
+
+@app.get("/api/patterns/stats")
+async def api_pattern_stats():
+    """Return all pattern win rates from NSE historical data."""
+    return get_all_win_rates()
 
 
 # =========================================================================
