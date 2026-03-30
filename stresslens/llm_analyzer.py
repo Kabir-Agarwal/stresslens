@@ -73,9 +73,10 @@ GEMINI_KEYS = [
 ]
 
 GROQ_KEY = (os.getenv("GROQ_KEY", "") or "").strip()
+ANTHROPIC_KEY = (os.getenv("ANTHROPIC_KEY", "") or "").strip()
 
 # Print key status
-for kn in ["GEMINI_KEY_1", "GEMINI_KEY_2", "GEMINI_KEY_3", "GROQ_KEY"]:
+for kn in ["GEMINI_KEY_1", "GEMINI_KEY_2", "GEMINI_KEY_3", "GROQ_KEY", "ANTHROPIC_KEY"]:
     kv = os.getenv(kn, "")
     if kv and kv.strip():
         print(f"[LLM] OK {kn} = {kv[:8]}...{kv[-4:]}")
@@ -91,6 +92,11 @@ if GROQ_KEY:
     print("[LLM] Groq key ready")
 else:
     print("[LLM] No Groq key -- will use rule-based fallback")
+
+if ANTHROPIC_KEY:
+    print("[LLM] Anthropic key ready (used by TradeMind chat)")
+else:
+    print("[LLM] No Anthropic key -- TradeMind chat will use Groq/Gemini fallback")
 
 
 # Gemini model: gemini-2.0-flash-lite (free tier, separate quota from flash)

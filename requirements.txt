@@ -6,6 +6,7 @@ numpy
 python-dotenv
 google-generativeai
 groq
+anthropic
 beautifulsoup4
 httpx
 apscheduler

@@ -535,7 +535,11 @@ function renderChat() {
 
     const el = document.getElementById('chatArea');
 
-    // Always allow chat (don't gate demo users)
+    if (!afterMarket) {
+        el.innerHTML = `<div class="chat-notice">Chat available after market hours (3:30 PM IST)</div>`;
+        return;
+    }
+
     el.innerHTML = `
         <div class="chat-box" id="chatBox">
             <div class="chat-msg assistant">
