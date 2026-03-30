@@ -52,6 +52,10 @@ from market_context import enrich_all_trades as enrich_all_market_context
 from ohlcv_fetcher import init_ohlcv_db
 from pattern_backtest import init_win_rates_db, get_all_win_rates
 from trade_enricher import enrich_all_trades as enrich_all_patterns
+from behavioral_engine import (
+    discover_all_patterns, generate_daily_report, get_edge_conditions, init_behavioral_db,
+)
+from chat_engine import ask_claude
 
 app = FastAPI(
     title="StressLens + TradeMind",
@@ -65,6 +69,7 @@ init_trades_db()
 init_market_context_db()
 init_ohlcv_db()
 init_win_rates_db()
+init_behavioral_db()
 
 # Schedule weekly pipeline: every Sunday at 2am
 try:
@@ -74,8 +79,15 @@ try:
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_pipeline, "cron", day_of_week="sun", hour=2, minute=0,
                       id="weekly_pipeline", replace_existing=True)
+    # Daily report at 3:31 PM IST
+    scheduler.add_job(
+        lambda: generate_daily_report("demo"),
+        "cron", hour=15, minute=31,
+        id="daily_report", replace_existing=True,
+        timezone="Asia/Kolkata",
+    )
     scheduler.start()
-    print("[Scheduler] Weekly pipeline scheduled: Sundays at 2:00 AM")
+    print("[Scheduler] Weekly pipeline: Sundays 2:00 AM | Daily report: 3:31 PM IST")
 except Exception as e:
     print(f"[Scheduler] Failed to start: {e}")
 
@@ -496,6 +508,12 @@ async def api_load_demo():
             result["message"] += f" | {enrich_result['message']}"
         except Exception as e:
             print(f"[Demo] Pattern enrichment error: {e}")
+        # Auto-generate behavioral insights for demo
+        try:
+            discover_all_patterns("demo")
+            result["message"] += " | Behavioral insights generated"
+        except Exception as e:
+            print(f"[Demo] Behavioral insights error: {e}")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load demo data: {str(e)}")
@@ -517,6 +535,75 @@ async def api_enrich_trades():
 async def api_pattern_stats():
     """Return all pattern win rates from NSE historical data."""
     return get_all_win_rates()
+
+
+# =========================================================================
+# PHASE 3 — BEHAVIORAL INTELLIGENCE & CHAT
+# =========================================================================
+
+@app.get("/insights", response_class=HTMLResponse)
+async def serve_insights():
+    """Serve the insights page."""
+    path = os.path.join(FRONTEND_DIR, "insights.html")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Insights page not found")
+
+
+@app.get("/api/insights/daily")
+async def api_daily_report():
+    """Return today's daily report. Generates if not yet done."""
+    # Use demo user (or authenticated user when available)
+    session = get_valid_token()
+    user_id = session["user_id"] if session else "demo"
+    report = generate_daily_report(user_id)
+    return report
+
+
+@app.get("/api/insights/patterns")
+async def api_behavioral_patterns():
+    """Return complete behavioral analysis. Runs discovery if not done today."""
+    session = get_valid_token()
+    user_id = session["user_id"] if session else "demo"
+    patterns = discover_all_patterns(user_id)
+    return patterns
+
+
+@app.get("/api/insights/edge")
+async def api_edge_conditions():
+    """Return trader's edge conditions ranked by win rate."""
+    session = get_valid_token()
+    user_id = session["user_id"] if session else "demo"
+    edges = get_edge_conditions(user_id, min_sample=5)
+    return {"edge_conditions": edges, "count": len(edges)}
+
+
+@app.post("/api/chat")
+async def api_chat(request: Request):
+    """AI chat endpoint. Sends question with full trader context."""
+    body = await request.json()
+    question = body.get("question", "")
+    history = body.get("history", [])
+
+    if not question:
+        raise HTTPException(status_code=400, detail="No question provided")
+
+    session = get_valid_token()
+    user_id = session["user_id"] if session else "demo"
+
+    result = ask_claude(user_id, question, history)
+    return result
+
+
+@app.get("/api/insights/run")
+async def api_run_insights():
+    """Manually trigger daily report generation."""
+    session = get_valid_token()
+    user_id = session["user_id"] if session else "demo"
+    report = generate_daily_report(user_id)
+    return {"status": "generated", "report": report}
 
 
 # =========================================================================

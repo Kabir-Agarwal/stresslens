@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeMind — Insights</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-hover: #30363d;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #484f58;
+            --green: #00c087;
+            --green-dim: rgba(0, 192, 135, 0.15);
+            --red: #e84040;
+            --red-dim: rgba(232, 64, 64, 0.15);
+            --blue: #58a6ff;
+            --blue-dim: rgba(88, 166, 255, 0.1);
+            --yellow: #d29922;
+            --sidebar-w: 220px;
+            --header-h: 56px;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            position: fixed;
+            left: 0; top: 0; bottom: 0;
+            width: var(--sidebar-w);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+        .sidebar-brand {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-brand .logo { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+        .sidebar-brand .sub { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+        .sidebar-nav { flex: 1; padding: 12px 0; }
+        .nav-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 20px; color: var(--text-secondary);
+            text-decoration: none; font-size: 14px; font-weight: 500;
+            transition: all 0.15s; border-left: 3px solid transparent;
+        }
+        .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active { color: var(--text-primary); background: var(--bg-tertiary); border-left-color: var(--green); }
+        .nav-icon { width: 18px; text-align: center; font-size: 15px; opacity: 0.7; }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+        .sidebar-footer .user-pill { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+        .user-avatar {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: var(--green); border: 1px solid var(--border);
+        }
+
+        /* ── Header ── */
+        .header {
+            position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+            height: var(--header-h); background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px; z-index: 99;
+        }
+        .header-title { font-size: 15px; font-weight: 600; }
+
+        /* ── Main ── */
+        .main {
+            margin-left: var(--sidebar-w);
+            margin-top: var(--header-h);
+            padding: 24px;
+            min-height: calc(100vh - var(--header-h));
+        }
+
+        /* ── Section Card ── */
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 13px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            color: var(--text-muted); margin-bottom: 16px;
+        }
+
+        /* ── Today Summary ── */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .summary-item {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 16px;
+        }
+        .summary-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .summary-value { font-size: 22px; font-weight: 700; font-family: var(--font-mono); }
+        .summary-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .c-green { color: var(--green); }
+        .c-red { color: var(--red); }
+        .c-white { color: var(--text-primary); }
+        .c-yellow { color: var(--yellow); }
+
+        /* ── Tables ── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .data-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-yes { background: var(--green-dim); color: var(--green); }
+        .badge-no { background: var(--red-dim); color: var(--red); }
+
+        /* ── Observations ── */
+        .observation {
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-left: 3px solid var(--blue);
+        }
+
+        /* ── Edge Conditions ── */
+        .edge-bar-wrap {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .edge-bar {
+            height: 6px; border-radius: 3px; background: var(--bg-hover);
+            flex: 1; overflow: hidden;
+        }
+        .edge-bar-fill {
+            height: 100%; border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        /* ── Chat ── */
+        .chat-box {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            min-height: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .chat-msg {
+            margin-bottom: 16px;
+            max-width: 85%;
+        }
+        .chat-msg.user {
+            margin-left: auto;
+            text-align: right;
+        }
+        .chat-msg .msg-role {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .chat-msg .msg-text {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.6;
+            display: inline-block;
+            text-align: left;
+        }
+        .chat-msg.user .msg-text {
+            background: rgba(88, 166, 255, 0.12);
+            color: var(--blue);
+        }
+        .chat-msg.assistant .msg-text {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .chat-input-row {
+            display: flex; gap: 8px;
+        }
+        .chat-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: var(--font-sans);
+            outline: none;
+        }
+        .chat-input:focus { border-color: var(--blue); }
+        .chat-input::placeholder { color: var(--text-muted); }
+        .chat-send {
+            padding: 10px 18px;
+            background: var(--green-dim);
+            color: var(--green);
+            border: 1px solid rgba(0,192,135,0.3);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: var(--font-sans);
+        }
+        .chat-send:hover { background: rgba(0,192,135,0.25); }
+        .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+        .chat-notice {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* ── Loading ── */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .spinner {
+            display: inline-block;
+            width: 24px; height: 24px;
+            border: 2px solid var(--border);
+            border-top-color: var(--green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Alignment Score ── */
+        .alignment-score {
+            display: flex; align-items: center; justify-content: center;
+            width: 80px; height: 80px; border-radius: 50%;
+            font-size: 28px; font-weight: 700; font-family: var(--font-mono);
+            margin: 0 auto 8px;
+        }
+        .alignment-label { text-align: center; font-size: 12px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <a href="/dashboard" class="sidebar-brand" style="text-decoration:none;">
+        <div class="logo">TradeMind</div>
+        <div class="sub">StressLens inside</div>
+    </a>
+    <nav class="sidebar-nav">
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9632;</span> Dashboard
+        </a>
+        <a href="/insights" class="nav-item active">
+            <span class="nav-icon">&#9733;</span> Insights
+        </a>
+        <a href="/" class="nav-item">
+            <span class="nav-icon">&#9670;</span> StressLens
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="user-pill">
+            <div class="user-avatar">D</div>
+            <span>demo</span>
+        </div>
+    </div>
+</aside>
+
+<!-- Header -->
+<div class="header">
+    <span class="header-title">After-Hours Insights</span>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+    <div class="loading" id="loadingScreen">
+        <div class="spinner"></div>
+        <div>Analyzing your trade history...</div>
+    </div>
+
+    <div id="insightsContent" style="display:none;">
+
+        <!-- Today's Summary -->
+        <div class="section" id="todaySummarySection">
+            <div class="section-title">Today's Summary</div>
+            <div class="summary-grid" id="todaySummary"></div>
+        </div>
+
+        <!-- Pattern Continuity -->
+        <div class="section">
+            <div class="section-title">Pattern Continuity — Last 7 Days vs Today</div>
+            <table class="data-table" id="continuityTable">
+                <thead>
+                    <tr>
+                        <th>Pattern</th>
+                        <th>Last 7 Days</th>
+                        <th>Today</th>
+                        <th>Continued?</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Conditions Alignment -->
+        <div class="section">
+            <div class="section-title">Conditions Alignment</div>
+            <div id="alignmentContent"></div>
+        </div>
+
+        <!-- Notable Observations -->
+        <div class="section">
+            <div class="section-title">Notable Observations</div>
+            <div id="observationsContent"></div>
+        </div>
+
+        <!-- Edge Conditions -->
+        <div class="section">
+            <div class="section-title">Your Edge Conditions</div>
+            <table class="data-table" id="edgeTable">
+                <thead>
+                    <tr>
+                        <th>Condition</th>
+                        <th>Your Win Rate</th>
+                        <th>Sample Size</th>
+                        <th style="width:200px;"></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Chat -->
+        <div class="section">
+            <div class="section-title">TradeMind Chat</div>
+            <div id="chatArea"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const API = '';
+let chatHistory = [];
+
+// ── Load everything ──
+async function init() {
+    try {
+        const [dailyRes, edgeRes] = await Promise.all([
+            fetch(`${API}/api/insights/daily`),
+            fetch(`${API}/api/insights/edge`),
+        ]);
+
+        const daily = await dailyRes.json();
+        const edge = await edgeRes.json();
+
+        renderTodaySummary(daily.today_summary || {});
+        renderContinuity(daily.pattern_continuity || []);
+        renderAlignment(daily.conditions_alignment || {});
+        renderObservations(daily.notable_observations || []);
+        renderEdge(edge.edge_conditions || edge || []);
+        renderChat();
+
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('insightsContent').style.display = 'block';
+    } catch (err) {
+        document.getElementById('loadingScreen').innerHTML =
+            `<div style="color:var(--red);">Failed to load insights: ${err.message}</div>
+             <div style="margin-top:12px;color:var(--text-muted);">Make sure demo data is loaded. <a href="/dashboard" style="color:var(--blue);">Go to Dashboard</a></div>`;
+    }
+}
+
+// ── Today Summary ──
+function renderTodaySummary(s) {
+    const pnlColor = s.pnl >= 0 ? 'c-green' : 'c-red';
+    const basePnlColor = s.baseline_avg_daily_pnl >= 0 ? 'c-green' : 'c-red';
+    document.getElementById('todaySummary').innerHTML = `
+        <div class="summary-item">
+            <div class="summary-label">Today's Trades</div>
+            <div class="summary-value c-white">${s.trades_count || 0}</div>
+            <div class="summary-sub">7-day avg: ${s.baseline_avg_daily_trades || '-'}/day</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Today's P&L</div>
+            <div class="summary-value ${pnlColor}">${s.pnl_formatted || '₹0'}</div>
+            <div class="summary-sub">7-day avg: ${s.baseline_avg_daily_pnl_formatted || '-'}/day</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Today's Win Rate</div>
+            <div class="summary-value c-white">${s.win_rate || 0}%</div>
+            <div class="summary-sub">7-day avg: ${s.baseline_win_rate || '-'}%</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Report Date</div>
+            <div class="summary-value c-white" style="font-size:16px;">${s.date || '-'}</div>
+            <div class="summary-sub">Based on ${s.baseline_days || 0} baseline days</div>
+        </div>
+    `;
+}
+
+// ── Pattern Continuity ──
+function renderContinuity(items) {
+    const tbody = document.querySelector('#continuityTable tbody');
+    tbody.innerHTML = items.map(item => `
+        <tr>
+            <td style="color:var(--text-primary);font-weight:500;">${item.pattern}</td>
+            <td>${item.last_7_days}</td>
+            <td>${item.today}</td>
+            <td><span class="badge ${item.continued === 'Yes' ? 'badge-yes' : 'badge-no'}">${item.continued}</span></td>
+        </tr>
+    `).join('');
+}
+
+// ── Conditions Alignment ──
+function renderAlignment(a) {
+    const score = a.alignment_score || 0;
+    let color = 'var(--red)';
+    let bg = 'var(--red-dim)';
+    if (score >= 60) { color = 'var(--green)'; bg = 'var(--green-dim)'; }
+    else if (score >= 30) { color = 'var(--yellow)'; bg = 'rgba(210,153,34,0.15)'; }
+
+    document.getElementById('alignmentContent').innerHTML = `
+        <div style="display:flex;align-items:center;gap:32px;">
+            <div>
+                <div class="alignment-score" style="color:${color};background:${bg};">${score}</div>
+                <div class="alignment-label">Edge Alignment Score</div>
+            </div>
+            <div style="flex:1;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="summary-item">
+                        <div class="summary-label">Inside Edge</div>
+                        <div class="summary-value c-green">${a.inside_edge || 0}</div>
+                        <div class="summary-sub">trades in your strong conditions</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Outside Edge</div>
+                        <div class="summary-value c-red">${a.outside_edge || 0}</div>
+                        <div class="summary-sub">trades outside your strong conditions</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ── Notable Observations ──
+function renderObservations(items) {
+    const el = document.getElementById('observationsContent');
+    if (!items.length) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No notable observations for this period.</div>';
+        return;
+    }
+    el.innerHTML = items.map(item => `<div class="observation">${item}</div>`).join('');
+}
+
+// ── Edge Conditions ──
+function renderEdge(items) {
+    // items is an array of edge condition objects
+    const list = Array.isArray(items) ? items : [];
+    const tbody = document.querySelector('#edgeTable tbody');
+    tbody.innerHTML = list.slice(0, 15).map(item => {
+        const wr = item.win_rate || 0;
+        let barColor = 'var(--red)';
+        if (wr >= 60) barColor = 'var(--green)';
+        else if (wr >= 50) barColor = 'var(--yellow)';
+        return `
+            <tr>
+                <td style="color:var(--text-primary);font-weight:500;">${item.condition}</td>
+                <td style="font-family:var(--font-mono);">${wr}%</td>
+                <td style="font-family:var(--font-mono);">${item.sample_size} trades</td>
+                <td>
+                    <div class="edge-bar-wrap">
+                        <div class="edge-bar">
+                            <div class="edge-bar-fill" style="width:${wr}%;background:${barColor};"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ── Chat ──
+function renderChat() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const hour = ist.getHours();
+    const minute = ist.getMinutes();
+    const afterMarket = hour > 15 || (hour === 15 && minute >= 30);
+
+    const el = document.getElementById('chatArea');
+
+    // Always allow chat (don't gate demo users)
+    el.innerHTML = `
+        <div class="chat-box" id="chatBox">
+            <div class="chat-msg assistant">
+                <div class="msg-role">TradeMind</div>
+                <div class="msg-text">Ask me anything about your trading history. I'll answer from your data.</div>
+            </div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" class="chat-input" id="chatInput"
+                   placeholder="Ask anything about your trading..."
+                   onkeydown="if(event.key==='Enter')sendChat()">
+            <button class="chat-send" id="chatSendBtn" onclick="sendChat()">Send</button>
+        </div>
+    `;
+}
+
+async function sendChat() {
+    const input = document.getElementById('chatInput');
+    const question = input.value.trim();
+    if (!question) return;
+
+    input.value = '';
+    const chatBox = document.getElementById('chatBox');
+    const sendBtn = document.getElementById('chatSendBtn');
+
+    // Show user message
+    chatBox.innerHTML += `
+        <div class="chat-msg user">
+            <div class="msg-role">You</div>
+            <div class="msg-text">${escapeHtml(question)}</div>
+        </div>
+    `;
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // Disable send
+    sendBtn.disabled = true;
+    sendBtn.textContent = '...';
+
+    chatHistory.push({ role: 'user', content: question });
+
+    try {
+        const res = await fetch(`${API}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, history: chatHistory }),
+        });
+        const data = await res.json();
+        const response = data.response || 'No response.';
+
+        chatHistory.push({ role: 'assistant', content: response });
+
+        chatBox.innerHTML += `
+            <div class="chat-msg assistant">
+                <div class="msg-role">TradeMind${data.model ? ' · ' + data.model : ''}</div>
+                <div class="msg-text">${escapeHtml(response)}</div>
+            </div>
+        `;
+    } catch (err) {
+        chatBox.innerHTML += `
+            <div class="chat-msg assistant">
+                <div class="msg-role">TradeMind</div>
+                <div class="msg-text" style="color:var(--red);">Error: ${err.message}</div>
+            </div>
+        `;
+    }
+
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send';
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ── Init ──
+init();
+</script>
+</body>
+</html>
