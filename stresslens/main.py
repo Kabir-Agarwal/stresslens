@@ -71,6 +71,38 @@ init_ohlcv_db()
 init_win_rates_db()
 init_behavioral_db()
 
+# ── Startup: auto-enrich demo trades if patterns missing ──
+def _startup_enrich():
+    """Check if demo trades exist but lack patterns, and enrich them."""
+    import sqlite3 as _sq
+    _db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "stresslens.db")
+    try:
+        conn = _sq.connect(_db)
+        row = conn.execute(
+            "SELECT COUNT(*) as total, "
+            "SUM(CASE WHEN detected_pattern IS NOT NULL AND detected_pattern != '' THEN 1 ELSE 0 END) as enriched "
+            "FROM trades WHERE user_id = 'demo'"
+        ).fetchone()
+        conn.close()
+        if row and row[0] > 0 and row[1] < row[0] * 0.5:
+            print(f"[Startup] Demo trades: {row[0]} total, {row[1]} enriched — running enrichment...")
+            enrich_all_patterns("demo")
+            print("[Startup] Pattern enrichment complete")
+            # Also regenerate behavioral insights
+            try:
+                discover_all_patterns("demo")
+                print("[Startup] Behavioral insights regenerated")
+            except Exception as e:
+                print(f"[Startup] Behavioral insights error: {e}")
+        elif row and row[0] > 0:
+            print(f"[Startup] Demo trades: {row[0]} total, {row[1]} enriched — OK")
+        else:
+            print("[Startup] No demo trades found")
+    except Exception as e:
+        print(f"[Startup] Enrichment check error: {e}")
+
+_startup_enrich()
+
 # Schedule weekly pipeline: every Sunday at 2am
 try:
     from apscheduler.schedulers.background import BackgroundScheduler

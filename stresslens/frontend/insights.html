@@ -387,10 +387,18 @@
 <script>
 const API = '';
 let chatHistory = [];
+let isDemoUser = false;
 
 // ── Load everything ──
 async function init() {
     try {
+        // Check if demo user for chat gating
+        try {
+            const authRes = await fetch(`${API}/auth/status`);
+            const auth = await authRes.json();
+            isDemoUser = (auth.user_id === 'demo' || auth.mode === 'demo');
+        } catch (e) { isDemoUser = true; }
+
         const [dailyRes, edgeRes] = await Promise.all([
             fetch(`${API}/api/insights/daily`),
             fetch(`${API}/api/insights/edge`),
@@ -535,12 +543,17 @@ function renderChat() {
 
     const el = document.getElementById('chatArea');
 
-    if (!afterMarket) {
+    if (!afterMarket && !isDemoUser) {
         el.innerHTML = `<div class="chat-notice">Chat available after market hours (3:30 PM IST)</div>`;
         return;
     }
 
+    const demoNote = isDemoUser && !afterMarket
+        ? `<div style="text-align:center;padding:8px;font-size:12px;color:var(--yellow);background:rgba(210,153,34,0.1);border-radius:6px;margin-bottom:12px;">Demo mode — chat always available</div>`
+        : '';
+
     el.innerHTML = `
+        ${demoNote}
         <div class="chat-box" id="chatBox">
             <div class="chat-msg assistant">
                 <div class="msg-role">TradeMind</div>

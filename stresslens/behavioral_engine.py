@@ -722,7 +722,6 @@ def generate_daily_report(user_id: str, target_date: datetime = None) -> dict:
         if hours:
             after_1pm = sum(1 for h in hours if h >= 13)
             if after_1pm > len(hours) * 0.6 and len(hours) >= 2:
-                # Find historical afternoon win rate
                 afternoon_trades = [t for t in trades if t.get("_entry_dt") and t["_entry_dt"].hour >= 13]
                 afternoon_wr = _pct(sum(1 for t in afternoon_trades if t["_win"]), len(afternoon_trades))
                 observations.append(
@@ -766,6 +765,86 @@ def generate_daily_report(user_id: str, target_date: datetime = None) -> dict:
             observations.append(f"All {len(today_trades)} trades today were profitable")
         elif today_wins_streak == 0 and len(today_trades) >= 2:
             observations.append(f"None of today's {len(today_trades)} trades were profitable")
+
+    # ── Always generate observations from full history if we have < 3 ──
+    if len(observations) < 3 and len(trades) >= 5:
+        # Best time segment from full history
+        seg_stats = defaultdict(lambda: {"wins": 0, "total": 0})
+        for t in trades:
+            dt = t.get("_entry_dt")
+            if dt:
+                h = dt.hour
+                if 9 <= h < 11:
+                    seg = "before 11am"
+                elif 11 <= h < 13:
+                    seg = "between 11am-1pm"
+                else:
+                    seg = "after 1pm"
+                seg_stats[seg]["total"] += 1
+                if t["_win"]:
+                    seg_stats[seg]["wins"] += 1
+        if seg_stats and len(observations) < 5:
+            best_seg = max(seg_stats.items(), key=lambda x: _pct(x[1]["wins"], x[1]["total"]))
+            worst_seg = min(seg_stats.items(), key=lambda x: _pct(x[1]["wins"], x[1]["total"]))
+            best_wr = _pct(best_seg[1]["wins"], best_seg[1]["total"])
+            worst_wr = _pct(worst_seg[1]["wins"], worst_seg[1]["total"])
+            if best_seg[0] != worst_seg[0]:
+                observations.append(
+                    f"Across your history, trades placed {best_seg[0]} have a {best_wr}% win rate "
+                    f"({best_seg[1]['total']} trades) vs {worst_wr}% {worst_seg[0]} ({worst_seg[1]['total']} trades)"
+                )
+
+        # Streak pattern: performance after consecutive losses
+        consec_losses = 0
+        after_loss_wins = 0
+        after_loss_total = 0
+        for t in trades:
+            if consec_losses >= 2:
+                after_loss_total += 1
+                if t["_win"]:
+                    after_loss_wins += 1
+            if t["_win"]:
+                consec_losses = 0
+            else:
+                consec_losses += 1
+        if after_loss_total >= 3 and len(observations) < 5:
+            after_loss_wr = _pct(after_loss_wins, after_loss_total)
+            overall_wr = _pct(sum(1 for t in trades if t["_win"]), len(trades))
+            observations.append(
+                f"After 2+ consecutive losses, your win rate is {after_loss_wr}% "
+                f"({after_loss_total} trades) vs your overall {overall_wr}%"
+            )
+
+        # Best and worst symbol
+        sym_perf = defaultdict(lambda: {"wins": 0, "total": 0, "pnl": 0.0})
+        for t in trades:
+            sym = t.get("symbol", "")
+            if sym:
+                sym_perf[sym]["total"] += 1
+                sym_perf[sym]["pnl"] += t.get("pnl", 0) or 0
+                if t["_win"]:
+                    sym_perf[sym]["wins"] += 1
+        qualified = {s: v for s, v in sym_perf.items() if v["total"] >= 3}
+        if len(qualified) >= 2 and len(observations) < 5:
+            best_sym = max(qualified.items(), key=lambda x: x[1]["pnl"])
+            worst_sym = min(qualified.items(), key=lambda x: x[1]["pnl"])
+            observations.append(
+                f"Your best symbol is {best_sym[0]} ({_fmt_inr(best_sym[1]['pnl'])} across "
+                f"{best_sym[1]['total']} trades, {_pct(best_sym[1]['wins'], best_sym[1]['total'])}% win rate). "
+                f"Lowest: {worst_sym[0]} ({_fmt_inr(worst_sym[1]['pnl'])}, {worst_sym[1]['total']} trades)"
+            )
+
+        # Direction split
+        all_longs = [t for t in trades if t.get("direction") == "LONG"]
+        all_shorts = [t for t in trades if t.get("direction") == "SHORT"]
+        if all_longs and all_shorts and len(observations) < 5:
+            long_wr = _pct(sum(1 for t in all_longs if t["_win"]), len(all_longs))
+            short_wr = _pct(sum(1 for t in all_shorts if t["_win"]), len(all_shorts))
+            if abs(long_wr - short_wr) > 3:
+                observations.append(
+                    f"LONG trades: {long_wr}% win rate ({len(all_longs)} trades) vs "
+                    f"SHORT trades: {short_wr}% win rate ({len(all_shorts)} trades)"
+                )
 
     report = {
         "report_date": today_str,
