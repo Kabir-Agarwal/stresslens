@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeMind — Company</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-hover: #30363d;
+            --border: #30363d;
+            --border-light: #21262d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #484f58;
+            --green: #00c087;
+            --green-dim: rgba(0, 192, 135, 0.15);
+            --red: #e84040;
+            --red-dim: rgba(232, 64, 64, 0.15);
+            --blue: #58a6ff;
+            --blue-dim: rgba(88, 166, 255, 0.1);
+            --yellow: #d29922;
+            --orange: #f0883e;
+            --critical: #f85149;
+            --sidebar-w: 220px;
+            --header-h: 56px;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        }
+        body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; overflow-x: hidden; }
+
+        /* Sidebar */
+        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidebar-w); background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; }
+        .sidebar-brand { padding: 18px 20px; border-bottom: 1px solid var(--border); text-decoration: none; display: block; }
+        .sidebar-brand .logo { font-size: 20px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+        .sidebar-brand .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .sidebar-nav { flex: 1; padding: 12px 0; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.15s; border-left: 3px solid transparent; }
+        .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active { color: var(--text-primary); background: var(--bg-tertiary); border-left-color: var(--green); }
+        .nav-icon { width: 18px; text-align: center; font-size: 15px; opacity: 0.7; }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+
+        /* Header */
+        .header { position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: var(--header-h); background: var(--bg-secondary); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 99; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-back { color: var(--text-secondary); text-decoration: none; font-size: 13px; }
+        .header-back:hover { color: var(--text-primary); }
+        .header-title { font-size: 15px; font-weight: 600; }
+
+        /* Main */
+        .main { margin-left: var(--sidebar-w); margin-top: var(--header-h); padding: 24px 28px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        /* Section card */
+        .section { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 20px; }
+        .section-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .section-title .powered { font-size: 10px; color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; background: var(--bg-tertiary); padding: 2px 7px; border-radius: 4px; }
+
+        /* Company header */
+        .co-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 0; }
+        .co-name { font-size: 22px; font-weight: 700; }
+        .co-symbol { font-family: var(--font-mono); font-size: 14px; color: var(--text-secondary); margin-top: 3px; }
+        .co-badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+        .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 5px; font-family: var(--font-mono); }
+        .badge-critical { background: rgba(248,81,73,0.15); color: #f85149; }
+        .badge-high { background: rgba(240,136,62,0.15); color: #f0883e; }
+        .badge-medium { background: rgba(210,153,34,0.15); color: #d29922; }
+        .badge-low { background: var(--green-dim); color: var(--green); }
+        .score-big { font-size: 40px; font-weight: 700; font-family: var(--font-mono); }
+        .score-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Chart container */
+        #chartContainer { width: 100%; height: 340px; }
+        .pattern-suggestion { margin-top: 14px; background: var(--bg-tertiary); border-radius: 6px; padding: 12px 16px; font-size: 13px; color: var(--text-secondary); }
+        .pattern-suggestion strong { color: var(--blue); }
+
+        /* Signals grid */
+        .signals-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+        .signal-card { background: var(--bg-tertiary); border-radius: 6px; padding: 12px 14px; }
+        .signal-name { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+        .signal-score { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
+        .signal-max { font-size: 11px; color: var(--text-muted); }
+        .signal-bar { height: 3px; border-radius: 2px; background: var(--bg-hover); margin-top: 8px; }
+        .signal-bar-fill { height: 100%; border-radius: 2px; background: var(--green); transition: width 0.4s; }
+
+        /* AI analysis */
+        .ai-box { background: var(--bg-tertiary); border-radius: 6px; padding: 14px 16px; font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+        .ai-box strong { color: var(--text-primary); }
+
+        /* Filing rows */
+        .filing-row { padding: 12px 0; border-bottom: 1px solid var(--border-light); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .filing-row:last-child { border-bottom: none; }
+        .filing-type { font-size: 12px; font-weight: 600; color: var(--blue); font-family: var(--font-mono); }
+        .filing-anomaly { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+        .filing-sev { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+        .sev-high { background: rgba(240,136,62,0.15); color: #f0883e; }
+        .sev-medium { background: rgba(210,153,34,0.15); color: #d29922; }
+        .sev-low { background: var(--green-dim); color: var(--green); }
+
+        /* Trade history */
+        .trade-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .trade-table th { text-align: left; padding: 8px 12px; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border); }
+        .trade-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); }
+        .trade-table tr:last-child td { border-bottom: none; }
+        .trade-table tr:hover td { background: var(--bg-tertiary); }
+        .pos { color: var(--green); }
+        .neg { color: var(--red); }
+        .dir-long { color: var(--green); font-weight: 600; }
+        .dir-short { color: var(--red); font-weight: 600; }
+        .pattern-badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; background: var(--blue-dim); color: var(--blue); font-weight: 500; }
+
+        /* Stats row */
+        .stat-row { display: flex; gap: 24px; margin-bottom: 16px; }
+        .stat-item { display: flex; flex-direction: column; gap: 3px; }
+        .stat-item .lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+        .stat-item .val { font-size: 18px; font-weight: 700; font-family: var(--font-mono); }
+
+        /* Loading / error */
+        .loader { text-align: center; padding: 60px 0; color: var(--text-muted); font-size: 14px; }
+        .err-box { background: var(--red-dim); border: 1px solid rgba(232,64,64,0.3); border-radius: 6px; padding: 14px 18px; color: var(--red); font-size: 13px; margin-bottom: 20px; }
+        #loadingState { display: block; }
+        #mainContent { display: none; }
+
+        /* Trend chart */
+        .trend-chart-wrap { height: 140px; margin-top: 4px; }
+
+        /* Empty */
+        .empty-msg { color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <a href="/" class="sidebar-brand">
+        <div class="logo">TradeMind</div>
+        <div class="sub">Know your trades. Know your stocks.</div>
+    </a>
+    <nav class="sidebar-nav">
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9632;</span> Dashboard
+        </a>
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9650;</span> Charts
+        </a>
+        <a href="/insights" class="nav-item">
+            <span class="nav-icon">&#9733;</span> Insights
+        </a>
+        <a href="/stresslens" class="nav-item">
+            <span class="nav-icon">&#9670;</span> StressLens
+        </a>
+        <a href="/filings" class="nav-item">
+            <span class="nav-icon">&#9744;</span> Filings
+        </a>
+    </nav>
+    <div class="sidebar-footer">Powered by StressLens Intelligence</div>
+</aside>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-left">
+        <a href="/" class="header-back">&#8592; TradeMind</a>
+        <span class="header-title" id="headerSymbol">Company</span>
+    </div>
+</div>
+
+<!-- Main -->
+<main class="main">
+<div class="container">
+
+    <div id="loadingState" class="loader">Loading company data...</div>
+    <div id="errorState" style="display:none;"></div>
+    <div id="mainContent">
+
+        <!-- Section 1: Company Header -->
+        <div class="section">
+            <div class="co-header">
+                <div>
+                    <div class="co-name" id="coName">—</div>
+                    <div class="co-symbol" id="coSymbol">—</div>
+                    <div class="co-badges" id="coBadges"></div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="score-label">Stress Score</div>
+                    <div class="score-big" id="coScore">—</div>
+                    <div class="score-label" style="margin-top:2px;">Powered by StressLens Intelligence</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Candlestick Chart -->
+        <div class="section">
+            <div class="section-title">&#9650; Price Chart &amp; Patterns</div>
+            <div id="chartContainer"></div>
+            <div class="pattern-suggestion" id="patternSuggestion" style="display:none;"></div>
+        </div>
+
+        <!-- Section 3: StressLens Analysis -->
+        <div class="section">
+            <div class="section-title">
+                &#9670; StressLens Analysis
+                <span class="powered">Powered by StressLens Intelligence</span>
+            </div>
+
+            <!-- 5 Signal cards -->
+            <div class="signals-grid" id="signalsGrid"></div>
+
+            <!-- 8-quarter trend chart -->
+            <div style="margin-bottom:18px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">8-Quarter Stress Trend</div>
+                <div class="trend-chart-wrap">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- AI analysis -->
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">AI Analysis</div>
+            <div class="ai-box" id="aiAnalysis">Loading analysis...</div>
+        </div>
+
+        <!-- Section 4: Filing Watch -->
+        <div class="section">
+            <div class="section-title">&#9744; Filing Watch</div>
+            <div id="filingPanel"><div class="empty-msg">Loading filing data...</div></div>
+        </div>
+
+        <!-- Section 5: Your Trading History -->
+        <div class="section" id="tradeHistorySection">
+            <div class="section-title">&#9632; Your Trading History on This Stock</div>
+            <div id="tradeStats" class="stat-row" style="display:none;"></div>
+            <div id="tradeHistoryPanel"><div class="empty-msg">Loading trade history...</div></div>
+        </div>
+
+    </div>
+</div>
+</main>
+
+<script>
+    const symbol = new URLSearchParams(window.location.search).get('symbol') || '';
+    document.getElementById('headerSymbol').textContent = symbol || 'Company';
+    document.title = `TradeMind — ${symbol}`;
+
+    let trendChartInst = null;
+
+    async function loadCompany() {
+        if (!symbol) {
+            showError('No symbol provided. Try /company?symbol=RELIANCE');
+            return;
+        }
+        try {
+            const r = await fetch(`/api/company/${symbol}`);
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({detail: 'Not found'}));
+                showError(err.detail || `Could not load data for ${symbol}`);
+                return;
+            }
+            const data = await r.json();
+            renderCompany(data);
+        } catch(e) {
+            showError(`Failed to load ${symbol}: ${e.message}`);
+        }
+    }
+
+    function showError(msg) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').innerHTML = `<div class="err-box">&#9888; ${msg}</div>`;
+        document.getElementById('errorState').style.display = 'block';
+    }
+
+    function scoreColor(score) {
+        if (score >= 81) return '#f85149';
+        if (score >= 61) return '#f0883e';
+        if (score >= 31) return '#d29922';
+        return '#00c087';
+    }
+
+    function riskClass(rl) {
+        if (rl === 'CRITICAL') return 'badge-critical';
+        if (rl === 'HIGH') return 'badge-high';
+        if (rl === 'MEDIUM') return 'badge-medium';
+        return 'badge-low';
+    }
+
+    function renderCompany(data) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+
+        // ── Section 1: Header ──
+        document.getElementById('coName').textContent = data.company_name || symbol;
+        document.getElementById('coSymbol').textContent = `NSE: ${data.symbol}`;
+        const score = data.stress_score || 0;
+        const rl = data.risk_level || 'LOW';
+        const scoreEl = document.getElementById('coScore');
+        scoreEl.textContent = score;
+        scoreEl.style.color = scoreColor(score);
+
+        document.getElementById('coBadges').innerHTML = `
+            <span class="badge ${riskClass(rl)}">${rl}</span>
+            <span class="badge" style="background:var(--bg-tertiary);color:var(--text-secondary);">Confidence: ${data.confidence || 75}%</span>
+            ${data.cached ? '<span class="badge" style="background:var(--bg-tertiary);color:var(--text-muted);">Cached</span>' : ''}
+        `;
+
+        // ── Section 2: Candlestick Chart ──
+        renderChart(data.ohlcv || [], data.trades || []);
+
+        // Show latest pattern suggestion
+        if (data.trades && data.trades.length > 0) {
+            const latest = data.trades.find(t => t.detected_pattern);
+            if (latest) {
+                document.getElementById('patternSuggestion').style.display = 'block';
+                document.getElementById('patternSuggestion').innerHTML =
+                    `<strong>Latest Pattern on Your Trades:</strong> ${latest.detected_pattern.replace(/_/g,' ')}
+                     ${latest.nse_win_rate ? `— NSE historical win rate: <strong>${latest.nse_win_rate}%</strong>` : ''}`;
+            }
+        }
+
+        // ── Section 3: Signals ──
+        renderSignals(data.signals || {});
+
+        // Trend chart
+        renderTrendChart(data.historical_scores || []);
+
+        // AI analysis
+        const ai = data.ai_analysis || {};
+        document.getElementById('aiAnalysis').innerHTML =
+            ai.summary ? `<strong>Summary:</strong> ${ai.summary}` +
+            (ai.gemini_flags && ai.gemini_flags.length ? `<br><br><strong>Key flags:</strong> ${ai.gemini_flags.slice(0,3).join(', ')}` : '') : 'No AI analysis available.';
+
+        // ── Section 4: Filings ──
+        renderFilings(data.filing_anomalies || []);
+
+        // ── Section 5: Trade History ──
+        renderTradeHistory(data.trades || [], data.trade_stats || null);
+    }
+
+    function renderChart(ohlcv, trades) {
+        const container = document.getElementById('chartContainer');
+        container.innerHTML = '';
+
+        if (!ohlcv || ohlcv.length === 0) {
+            container.innerHTML = '<div class="empty-msg" style="padding:60px 0;">No OHLCV data available for this symbol.</div>';
+            return;
+        }
+
+        try {
+            const chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: 340,
+                layout: { background: { color: '#0d1117' }, textColor: '#8b949e' },
+                grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#30363d' },
+                timeScale: { borderColor: '#30363d', timeVisible: true },
+            });
+
+            const candleSeries = chart.addCandlestickSeries({
+                upColor: '#00c087',
+                downColor: '#e84040',
+                borderUpColor: '#00c087',
+                borderDownColor: '#e84040',
+                wickUpColor: '#00c087',
+                wickDownColor: '#e84040',
+            });
+
+            const candleData = ohlcv.map(c => ({
+                time: c.date,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+            })).sort((a, b) => a.time > b.time ? 1 : -1);
+
+            candleSeries.setData(candleData);
+
+            // Pattern markers from trades
+            const markers = [];
+            (trades || []).forEach(t => {
+                if (t.detected_pattern && t.entry_time) {
+                    const d = t.entry_time.split('T')[0];
+                    markers.push({
+                        time: d,
+                        position: t.direction === 'LONG' ? 'belowBar' : 'aboveBar',
+                        color: t.direction === 'LONG' ? '#00c087' : '#e84040',
+                        shape: t.direction === 'LONG' ? 'arrowUp' : 'arrowDown',
+                        text: t.detected_pattern.replace(/_/g,' '),
+                    });
+                }
+            });
+            if (markers.length > 0) {
+                markers.sort((a,b) => a.time > b.time ? 1 : -1);
+                candleSeries.setMarkers(markers);
+            }
+
+            chart.timeScale().fitContent();
+
+            window.addEventListener('resize', () => {
+                chart.applyOptions({ width: container.clientWidth });
+            });
+        } catch(e) {
+            container.innerHTML = `<div class="empty-msg" style="padding:60px 0;">Chart unavailable: ${e.message}</div>`;
+        }
+    }
+
+    function renderSignals(signals) {
+        const names = { beneish: 'Beneish', altman: 'Altman', piotroski: 'Piotroski', pledge: 'Pledge', cash_flow: 'Cash Flow' };
+        const maxMap = { beneish: 25, altman: 25, piotroski: 20, pledge: 20, cash_flow: 10 };
+        const grid = document.getElementById('signalsGrid');
+
+        if (!signals || Object.keys(signals).length === 0) {
+            grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1">No signal data available.</div>';
+            return;
+        }
+
+        grid.innerHTML = Object.entries(signals).map(([key, sig]) => {
+            const name = names[key] || key;
+            const s = sig.score || 0;
+            const mx = sig.max_score || maxMap[key] || 25;
+            const pct = Math.min(100, Math.round(s / mx * 100));
+            const color = pct >= 80 ? '#f85149' : pct >= 60 ? '#f0883e' : pct >= 40 ? '#d29922' : '#00c087';
+            return `<div class="signal-card">
+                <div class="signal-name">${name}</div>
+                <div class="signal-score" style="color:${color}">${s}<span class="signal-max">/${mx}</span></div>
+                <div class="signal-bar"><div class="signal-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderTrendChart(historical) {
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        if (trendChartInst) { trendChartInst.destroy(); trendChartInst = null; }
+
+        const labels = historical.map(h => h.quarter || '');
+        const scores = historical.map(h => h.score || 0);
+
+        if (scores.length === 0) {
+            ctx.canvas.parentElement.innerHTML = '<div class="empty-msg">No historical data.</div>';
+            return;
+        }
+
+        trendChartInst = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    data: scores,
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88,166,255,0.08)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#58a6ff',
+                    tension: 0.3,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 } } },
+                    y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 } }, min: 0, max: 100 }
+                }
+            }
+        });
+    }
+
+    function renderFilings(anomalies) {
+        const panel = document.getElementById('filingPanel');
+        if (!anomalies || anomalies.length === 0) {
+            panel.innerHTML = '<div class="empty-msg">No filing anomalies detected for this company.</div>';
+            return;
+        }
+        panel.innerHTML = anomalies.map(a => {
+            const sevCls = a.severity === 'HIGH' ? 'sev-high' : a.severity === 'MEDIUM' ? 'sev-medium' : 'sev-low';
+            return `<div class="filing-row">
+                <div>
+                    <div class="filing-type">${a.filing_type}</div>
+                    <div class="filing-anomaly">${a.anomaly}</div>
+                    ${a.date ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${a.date}</div>` : ''}
+                </div>
+                <span class="filing-sev ${sevCls}">${a.severity}</span>
+            </div>`;
+        }).join('');
+    }
+
+    function renderTradeHistory(trades, stats) {
+        const panel = document.getElementById('tradeHistoryPanel');
+
+        if (!trades || trades.length === 0) {
+            panel.innerHTML = '<div class="empty-msg">No trades on this symbol. <a href="/dashboard" style="color:var(--blue)">Go to Dashboard &#8599;</a></div>';
+            return;
+        }
+
+        // Stats row
+        if (stats) {
+            const statEl = document.getElementById('tradeStats');
+            statEl.style.display = 'flex';
+            const wr = stats.win_rate !== undefined ? stats.win_rate : 0;
+            const pnl = stats.total_pnl || 0;
+            const pnlStr = (pnl >= 0 ? '+' : '') + '₹' + Math.abs(pnl).toLocaleString('en-IN');
+            statEl.innerHTML = `
+                <div class="stat-item"><div class="lbl">Trades</div><div class="val">${stats.total || trades.length}</div></div>
+                <div class="stat-item"><div class="lbl">Win Rate</div><div class="val ${wr >= 50 ? 'pos' : 'neg'}">${wr}%</div></div>
+                <div class="stat-item"><div class="lbl">Total P&amp;L</div><div class="val ${pnl >= 0 ? 'pos' : 'neg'}">${pnlStr}</div></div>
+            `;
+        }
+
+        panel.innerHTML = `<table class="trade-table">
+            <thead><tr>
+                <th>Date</th><th>Direction</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Pattern</th>
+            </tr></thead>
+            <tbody>
+                ${trades.map(t => {
+                    const pnl = t.pnl || 0;
+                    const pnlStr = (pnl >= 0 ? '+' : '') + '₹' + Math.abs(pnl).toLocaleString('en-IN');
+                    const entry = t.entry_time ? new Date(t.entry_time).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'2-digit'}) : '—';
+                    return `<tr>
+                        <td style="color:var(--text-secondary);font-size:12px;">${entry}</td>
+                        <td><span class="${t.direction === 'LONG' ? 'dir-long' : 'dir-short'}">${t.direction}</span></td>
+                        <td style="font-family:var(--font-mono);font-size:12px;">₹${(t.entry_price||0).toLocaleString('en-IN')}</td>
+                        <td style="font-family:var(--font-mono);font-size:12px;">₹${(t.exit_price||0).toLocaleString('en-IN')}</td>
+                        <td class="${pnl >= 0 ? 'pos' : 'neg'}" style="font-family:var(--font-mono);font-size:12px;font-weight:600;">${pnlStr}</td>
+                        <td>${t.detected_pattern ? `<span class="pattern-badge">${t.detected_pattern.replace(/_/g,' ')}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    }
+
+    loadCompany();
+</script>
+</body>
+</html>

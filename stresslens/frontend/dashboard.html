@@ -559,19 +559,25 @@
 
 <!-- Sidebar -->
 <aside class="sidebar">
-    <a href="/dashboard" class="sidebar-brand" style="text-decoration:none;">
+    <a href="/" class="sidebar-brand" style="text-decoration:none;">
         <div class="logo">TradeMind</div>
-        <div class="sub">StressLens inside</div>
+        <div class="sub">Know your trades. Know your stocks.</div>
     </a>
     <nav class="sidebar-nav">
         <a href="/dashboard" class="nav-item active">
             <span class="nav-icon">&#9632;</span> Dashboard
         </a>
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9650;</span> Charts
+        </a>
         <a href="/insights" class="nav-item">
             <span class="nav-icon">&#9733;</span> Insights
         </a>
-        <a href="/" class="nav-item">
+        <a href="/stresslens" class="nav-item">
             <span class="nav-icon">&#9670;</span> StressLens
+        </a>
+        <a href="/filings" class="nav-item">
+            <span class="nav-icon">&#9744;</span> Filings
         </a>
     </nav>
     <div class="sidebar-footer">
@@ -827,7 +833,7 @@ function renderTrades(trades) {
 
         tbody.innerHTML += `<tr>
             <td>${dateStr} ${timeStr}</td>
-            <td class="td-sym">${t.symbol}</td>
+            <td class="td-sym"><a href="/company?symbol=${t.symbol}" style="color:inherit;text-decoration:none;font-weight:600;" onmouseover="this.style.color='#58a6ff'" onmouseout="this.style.color='inherit'">${t.symbol}</a></td>
             <td>${dirBadge}</td>
             <td>${t.quantity}</td>
             <td>${fmtP(t.entry_price)}</td>

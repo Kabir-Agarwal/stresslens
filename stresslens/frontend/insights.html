@@ -287,19 +287,25 @@
 
 <!-- Sidebar -->
 <aside class="sidebar">
-    <a href="/dashboard" class="sidebar-brand" style="text-decoration:none;">
+    <a href="/" class="sidebar-brand" style="text-decoration:none;">
         <div class="logo">TradeMind</div>
-        <div class="sub">StressLens inside</div>
+        <div class="sub">Know your trades. Know your stocks.</div>
     </a>
     <nav class="sidebar-nav">
         <a href="/dashboard" class="nav-item">
             <span class="nav-icon">&#9632;</span> Dashboard
         </a>
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9650;</span> Charts
+        </a>
         <a href="/insights" class="nav-item active">
             <span class="nav-icon">&#9733;</span> Insights
         </a>
-        <a href="/" class="nav-item">
+        <a href="/stresslens" class="nav-item">
             <span class="nav-icon">&#9670;</span> StressLens
+        </a>
+        <a href="/filings" class="nav-item">
+            <span class="nav-icon">&#9744;</span> Filings
         </a>
     </nav>
     <div class="sidebar-footer">
@@ -516,9 +522,20 @@ function renderEdge(items) {
         let barColor = 'var(--red)';
         if (wr >= 60) barColor = 'var(--green)';
         else if (wr >= 50) barColor = 'var(--yellow)';
+        const isSymbol = item.type === 'symbol';
+        const isSymDir = item.type === 'symbol_direction';
+        let condDisplay = item.condition;
+        if (isSymbol) {
+            condDisplay = `<a href="/company?symbol=${item.condition}" style="color:var(--blue);text-decoration:none;font-family:var(--font-mono);">${item.condition} &#8599;</a>`;
+        } else if (isSymDir) {
+            const parts = item.condition.split(' ');
+            const sym = parts[0], dir = parts[1] || '';
+            const dirColor = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
+            condDisplay = `<a href="/company?symbol=${sym}" style="color:var(--blue);text-decoration:none;font-family:var(--font-mono);">${sym}</a> <span style="color:${dirColor};font-size:11px;">${dir}</span>`;
+        }
         return `
             <tr>
-                <td style="color:var(--text-primary);font-weight:500;">${item.condition}</td>
+                <td style="color:var(--text-primary);font-weight:500;">${condDisplay}</td>
                 <td style="font-family:var(--font-mono);">${wr}%</td>
                 <td style="font-family:var(--font-mono);">${item.sample_size} trades</td>
                 <td>

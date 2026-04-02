@@ -58,8 +58,8 @@ from behavioral_engine import (
 from chat_engine import ask_claude
 
 app = FastAPI(
-    title="StressLens + TradeMind",
-    description="Forensic stress scoring for Indian listed companies & trading journal for retail traders",
+    title="TradeMind",
+    description="Know your trades. Know your stocks. — Forensic stress scoring & trading journal for Indian retail traders.",
 )
 
 # Initialize all databases on startup
@@ -636,6 +636,275 @@ async def api_run_insights():
     user_id = session["user_id"] if session else "demo"
     report = generate_daily_report(user_id)
     return {"status": "generated", "report": report}
+
+
+# =========================================================================
+# TRADEMIND UNIFIED PAGES
+# =========================================================================
+
+@app.get("/stresslens", response_class=HTMLResponse)
+async def serve_stresslens():
+    """Serve the StressLens company stress search page."""
+    path = os.path.join(FRONTEND_DIR, "stresslens.html")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="StressLens page not found")
+
+
+@app.get("/company", response_class=HTMLResponse)
+async def serve_company():
+    """Serve the unified company page. Symbol passed as query param."""
+    path = os.path.join(FRONTEND_DIR, "company.html")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Company page not found")
+
+
+@app.get("/filings", response_class=HTMLResponse)
+async def serve_filings():
+    """Serve the filings anomaly watch page."""
+    path = os.path.join(FRONTEND_DIR, "filings.html")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Filings page not found")
+
+
+# =========================================================================
+# UNIFIED COMPANY API
+# =========================================================================
+
+def _extract_filing_anomalies(symbol: str, signals: dict, last_updated: str) -> list:
+    """Derive filing-style anomalies from StressLens signal scores."""
+    anomalies = []
+    date_str = last_updated[:10] if last_updated else datetime.now().strftime("%Y-%m-%d")
+
+    pledge = signals.get("pledge", {})
+    if pledge.get("score", 0) >= 10:
+        anomalies.append({
+            "filing_type": "Promoter Pledge",
+            "anomaly": "High promoter pledge ratio — significant increase in pledged shares detected.",
+            "severity": "HIGH" if pledge["score"] >= 15 else "MEDIUM",
+            "date": date_str,
+        })
+
+    beneish = signals.get("beneish", {})
+    if beneish.get("score", 0) >= 15:
+        anomalies.append({
+            "filing_type": "Earnings Quality",
+            "anomaly": "Beneish M-Score flags potential earnings manipulation in reported financials.",
+            "severity": "CRITICAL" if beneish["score"] >= 20 else "HIGH",
+            "date": date_str,
+        })
+
+    cf = signals.get("cash_flow", {})
+    if cf.get("score", 0) >= 5:
+        anomalies.append({
+            "filing_type": "Cash Flow Divergence",
+            "anomaly": "Reported net profit diverges significantly from operating cash flow.",
+            "severity": "HIGH" if cf["score"] >= 8 else "MEDIUM",
+            "date": date_str,
+        })
+
+    altman = signals.get("altman", {})
+    if altman.get("score", 0) >= 15:
+        anomalies.append({
+            "filing_type": "Financial Distress",
+            "anomaly": "Altman Z-Score in distress zone — elevated bankruptcy risk indicators.",
+            "severity": "HIGH" if altman["score"] >= 20 else "MEDIUM",
+            "date": date_str,
+        })
+
+    piotroski = signals.get("piotroski", {})
+    if piotroski.get("score", 0) >= 12:
+        anomalies.append({
+            "filing_type": "Financial Strength",
+            "anomaly": "Low Piotroski F-Score: multiple fundamental strength signals are negative.",
+            "severity": "MEDIUM",
+            "date": date_str,
+        })
+
+    return anomalies
+
+
+@app.get("/api/company/{symbol:path}")
+async def api_company(symbol: str):
+    """
+    Unified company endpoint. Returns stress score + OHLCV + user trades + filing anomalies.
+    Served at /company?symbol=X via the company.html frontend.
+    """
+    from ohlcv_fetcher import get_ohlcv
+
+    symbol = normalize_symbol(symbol)
+
+    # ── Stress score (cache → live) ──
+    stress_data: Optional[dict] = None
+    cached = get_cached_score(symbol, max_age_days=7)
+    if cached:
+        stress_data = {
+            "symbol": cached["symbol"],
+            "company_name": cached["company_name"],
+            "stress_score": cached["stress_score"],
+            "risk_level": cached["risk_level"],
+            "confidence": 75.0,
+            "signals": cached["signals"],
+            "historical_scores": cached.get("historical_scores", []),
+            "ai_analysis": {
+                "summary": (
+                    f"{cached['company_name']} has a stress score of {cached['stress_score']}/100 "
+                    f"({cached['risk_level']}). Data is cached — run a fresh analysis via StressLens for full AI insights."
+                ),
+                "gemini_flags": [],
+                "groq_flags": [],
+            },
+            "cached": True,
+            "last_updated": cached["last_updated"],
+            "data_source": cached.get("data_source", "cache"),
+        }
+    else:
+        try:
+            fetcher = get_fetcher()
+            company_data = fetcher.get_company_data(symbol)
+            quarters = company_data.get("quarters", [])
+            if not quarters:
+                raise HTTPException(status_code=404, detail=f"No financial data found for {symbol}")
+
+            current = quarters[-1]
+            previous = quarters[-2] if len(quarters) >= 2 else None
+            score_result = calculate_total_stress(current, previous)
+            cb_result = apply_circuit_breaker(score_result["stress_score"], symbol)
+            final_score = cb_result["adjusted_score"]
+
+            if final_score >= 81: risk_level = "CRITICAL"
+            elif final_score >= 61: risk_level = "HIGH"
+            elif final_score >= 31: risk_level = "MEDIUM"
+            else: risk_level = "LOW"
+
+            historical = []
+            if len(quarters) > 1:
+                hist_results = score_historical_quarters(quarters)
+                historical = [{"quarter": h["quarter"], "score": h["stress_score"]} for h in hist_results]
+            else:
+                historical = [{"quarter": current.get("quarter", "Current"), "score": final_score}]
+
+            try:
+                store_score(
+                    symbol=symbol, company_name=company_data["company_name"],
+                    stress_score=final_score, risk_level=risk_level,
+                    signals=score_result["signals"], historical=historical,
+                    data_source=company_data.get("data_source", "live"),
+                )
+            except Exception:
+                pass
+
+            stress_data = {
+                "symbol": symbol,
+                "company_name": company_data["company_name"],
+                "stress_score": final_score,
+                "risk_level": risk_level,
+                "confidence": 75.0,
+                "signals": score_result["signals"],
+                "historical_scores": historical,
+                "ai_analysis": {
+                    "summary": (
+                        f"{company_data['company_name']} has a stress score of {final_score}/100 ({risk_level}). "
+                        f"Use the StressLens page for full AI analysis."
+                    ),
+                    "gemini_flags": [],
+                    "groq_flags": [],
+                },
+                "cached": False,
+                "last_updated": datetime.now().isoformat(),
+                "data_source": company_data.get("data_source", "live"),
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"Could not load data for {symbol}: {str(e)}")
+
+    if not stress_data:
+        raise HTTPException(status_code=404, detail=f"No data found for {symbol}")
+
+    # ── OHLCV for candlestick chart ──
+    ohlcv = []
+    try:
+        kite = get_kite_client()
+        raw = get_ohlcv(symbol, num_candles=60, kite_client=kite)
+        ohlcv = [
+            {"date": c["date"], "open": c["open"], "high": c["high"],
+             "low": c["low"], "close": c["close"], "volume": c.get("volume", 0)}
+            for c in raw
+        ]
+    except Exception:
+        pass
+
+    # ── User trades on this symbol ──
+    session = get_valid_token()
+    user_id = session["user_id"] if session else "demo"
+    symbol_trades = get_trades(user_id=user_id, symbol=symbol)
+
+    trade_stats = None
+    if symbol_trades:
+        total = len(symbol_trades)
+        wins = sum(1 for t in symbol_trades if (t.get("pnl") or 0) > 0)
+        total_pnl = sum(t.get("pnl") or 0 for t in symbol_trades)
+        trade_stats = {
+            "total": total,
+            "win_rate": round(wins / total * 100) if total > 0 else 0,
+            "total_pnl": round(total_pnl, 2),
+        }
+
+    # ── Filing anomalies from signals ──
+    filing_anomalies = _extract_filing_anomalies(
+        symbol, stress_data.get("signals", {}), stress_data.get("last_updated", "")
+    )
+
+    return {
+        **stress_data,
+        "ohlcv": ohlcv,
+        "trades": symbol_trades,
+        "trade_stats": trade_stats,
+        "filing_anomalies": filing_anomalies,
+    }
+
+
+@app.get("/api/filings")
+async def api_filings(limit: int = 200):
+    """Return filing anomalies derived from all scored companies in the database."""
+    import sqlite3 as _sqlite3
+    init_db()
+    conn = _sqlite3.connect(pipeline.DB_PATH)
+    conn.row_factory = _sqlite3.Row
+    rows = conn.execute(
+        "SELECT symbol, company_name, stress_score, risk_level, signals_json, last_updated "
+        "FROM company_scores WHERE stress_score >= 25 ORDER BY stress_score DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    all_anomalies = []
+    for row in rows:
+        try:
+            signals = json.loads(row["signals_json"]) if row["signals_json"] else {}
+            anomalies = _extract_filing_anomalies(
+                row["symbol"], signals, row["last_updated"] or ""
+            )
+            for a in anomalies:
+                a["symbol"] = row["symbol"]
+                a["company_name"] = row["company_name"] or row["symbol"]
+            all_anomalies.extend(anomalies)
+        except Exception:
+            pass
+
+    sev_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+    all_anomalies.sort(key=lambda x: sev_order.get(x.get("severity", "LOW"), 0), reverse=True)
+
+    return {"anomalies": all_anomalies, "count": len(all_anomalies)}
 
 
 # =========================================================================

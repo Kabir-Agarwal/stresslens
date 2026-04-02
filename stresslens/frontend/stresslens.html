@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeMind — StressLens Intelligence</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-hover: #30363d;
+            --border: #30363d;
+            --border-light: #21262d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #484f58;
+            --green: #00c087;
+            --green-dim: rgba(0, 192, 135, 0.15);
+            --red: #e84040;
+            --red-dim: rgba(232, 64, 64, 0.15);
+            --blue: #58a6ff;
+            --blue-dim: rgba(88, 166, 255, 0.1);
+            --yellow: #d29922;
+            --orange: #d29922;
+            --critical: #f85149;
+            --sidebar-w: 220px;
+            --header-h: 56px;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            position: fixed;
+            left: 0; top: 0; bottom: 0;
+            width: var(--sidebar-w);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            text-decoration: none;
+            display: block;
+        }
+
+        .sidebar-brand .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+
+        .sidebar-brand .sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.15s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border-left-color: var(--green);
+        }
+
+        .nav-icon { width: 18px; text-align: center; font-size: 15px; opacity: 0.7; }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* ── Header ── */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-w);
+            right: 0;
+            height: var(--header-h);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 99;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .header-right span { font-family: var(--font-mono); }
+
+        /* ── Main ── */
+        .main {
+            margin-left: var(--sidebar-w);
+            margin-top: var(--header-h);
+            padding: 24px;
+            min-height: calc(100vh - var(--header-h));
+        }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        /* ── Search ── */
+        .search-section {
+            text-align: center;
+            padding: 48px 0 36px;
+        }
+
+        .search-section h2 {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            max-width: 560px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .search-input-wrap {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            font-family: var(--font-mono);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            outline: none;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: border-color 0.15s;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+            text-transform: none;
+            letter-spacing: 0;
+            font-family: var(--font-sans);
+        }
+
+        .search-box input:focus { border-color: var(--green); }
+
+        .search-box button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-family: var(--font-sans);
+            font-weight: 600;
+            background: var(--green);
+            color: #0d1117;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        .search-box button:hover { opacity: 0.9; }
+        .search-box button:disabled { opacity: 0.4; cursor: wait; }
+
+        /* Autocomplete */
+        #autocomplete {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0; right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .ac-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 0.1s;
+        }
+
+        .ac-item:hover { background: var(--bg-tertiary); }
+
+        .ac-item strong {
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
+
+        .ac-item .ac-name {
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+
+        .quick-links {
+            margin-top: 14px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .quick-links a {
+            color: var(--blue);
+            text-decoration: none;
+            margin: 0 6px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        .quick-links a:hover { text-decoration: underline; }
+
+        /* ── High Risk Section ── */
+        .high-risk { margin-bottom: 28px; }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0;
+        }
+
+        .risk-list {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .risk-row {
+            display: grid;
+            grid-template-columns: 100px 1fr 90px 130px;
+            align-items: center;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .risk-row:hover { background: var(--bg-tertiary); }
+        .risk-row:last-child { border-bottom: none; }
+
+        .risk-sym { font-family: var(--font-mono); font-weight: 700; color: var(--text-primary); }
+        .risk-name { color: var(--text-secondary); }
+        .risk-score { font-family: var(--font-mono); font-weight: 700; text-align: right; }
+        .risk-signal { font-size: 11px; color: var(--text-muted); text-align: right; }
+
+        /* ── Loading ── */
+        .loading-area {
+            display: none;
+            text-align: center;
+            padding: 48px 0;
+        }
+
+        .spinner {
+            width: 28px; height: 28px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--green);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-area p { color: var(--text-secondary); font-size: 13px; }
+
+        /* ── Error ── */
+        .error-msg {
+            display: none;
+            padding: 14px 18px;
+            margin: 16px 0;
+            border-radius: 6px;
+            background: var(--red-dim);
+            color: var(--red);
+            font-size: 13px;
+        }
+
+        /* ── Results ── */
+        .results {
+            display: none;
+            padding-bottom: 40px;
+        }
+
+        .company-header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .company-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .data-source {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-family: var(--font-mono);
+        }
+
+        /* Score Panel */
+        .score-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .score-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            text-align: center;
+            padding: 24px 16px;
+        }
+
+        .score-card .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .score-card .value {
+            font-size: 44px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            line-height: 1;
+        }
+
+        .score-card .sub {
+            font-size: 13px;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .c-green { color: var(--green); }
+        .c-orange { color: var(--orange); }
+        .c-red { color: var(--red); }
+        .c-critical { color: var(--critical); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .c-critical { animation: pulse 1.5s ease-in-out infinite; }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+        }
+
+        .badge-LOW { color: var(--green); background: var(--green-dim); }
+        .badge-MEDIUM { color: var(--orange); background: rgba(210,153,34,0.15); }
+        .badge-HIGH { color: var(--red); background: var(--red-dim); }
+        .badge-CRITICAL { color: var(--critical); background: rgba(248,81,73,0.15); }
+
+        /* Signal Breakdown */
+        .signal-row {
+            display: grid;
+            grid-template-columns: 180px 55px 1fr 80px;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-light);
+            gap: 12px;
+        }
+
+        .signal-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .signal-score {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            text-align: right;
+            color: var(--text-secondary);
+        }
+
+        .signal-bar-track {
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .signal-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .signal-verdict {
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            text-align: right;
+        }
+
+        .bar-green { background: var(--green); }
+        .bar-orange { background: var(--orange); }
+        .bar-red { background: var(--red); }
+        .bar-critical { background: var(--critical); }
+
+        /* Chart */
+        .chart-container {
+            margin: 16px 0;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            height: 300px;
+            position: relative;
+        }
+
+        /* AI Section */
+        .ai-agreement {
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+
+        .ai-agreed { background: var(--green-dim); color: var(--green); }
+        .ai-disagreed { background: rgba(210,153,34,0.15); color: var(--orange); }
+
+        .ai-flags { padding: 0; list-style: none; }
+
+        .ai-flags li {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+            padding-left: 16px;
+            position: relative;
+            color: var(--text-secondary);
+        }
+
+        .ai-flags li::before {
+            content: "\2022";
+            position: absolute;
+            left: 0;
+            color: var(--red);
+            font-weight: bold;
+        }
+
+        .ai-summary {
+            margin-top: 12px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+
+        /* Circuit Breakers */
+        .cb-alert {
+            padding: 12px 16px;
+            margin: 8px 0;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+
+        .cb-critical { background: rgba(248,81,73,0.12); color: var(--critical); }
+        .cb-high { background: var(--red-dim); color: var(--red); }
+        .cb-none { background: var(--green-dim); color: var(--green); }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .header { left: 0; }
+            .main { margin-left: 0; }
+            .score-panel { grid-template-columns: 1fr; }
+            .signal-row { grid-template-columns: 1fr 50px 1fr; }
+            .signal-verdict { display: none; }
+            .risk-row { grid-template-columns: 80px 1fr 70px; }
+            .risk-signal { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <a href="/" class="sidebar-brand" style="text-decoration:none;">
+        <div class="logo">TradeMind</div>
+        <div class="sub">Know your trades. Know your stocks.</div>
+    </a>
+    <nav class="sidebar-nav">
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9632;</span> Dashboard
+        </a>
+        <a href="/dashboard" class="nav-item">
+            <span class="nav-icon">&#9650;</span> Charts
+        </a>
+        <a href="/insights" class="nav-item">
+            <span class="nav-icon">&#9733;</span> Insights
+        </a>
+        <a href="/stresslens" class="nav-item active">
+            <span class="nav-icon">&#9670;</span> StressLens
+        </a>
+        <a href="/filings" class="nav-item">
+            <span class="nav-icon">&#9744;</span> Filings
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        Powered by StressLens Intelligence
+    </div>
+</aside>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-left">
+        <span class="header-title">StressLens — Company Stress Analysis</span>
+    </div>
+    <div class="header-right">
+        <span id="coverageCount"></span>
+    </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+    <div class="container">
+
+        <section class="search-section">
+            <h2>Forensic Stress Analysis for Indian Listed Companies</h2>
+            <div class="search-box">
+                <div class="search-input-wrap">
+                    <input type="text" id="symbolInput" placeholder="Enter company name or NSE symbol"
+                           onkeypress="if(event.key==='Enter')searchCompany()"
+                           oninput="onSearchInput(this.value)"
+                           onfocus="onSearchInput(this.value)"
+                           autocomplete="off">
+                    <div id="autocomplete"></div>
+                </div>
+                <button id="searchBtn" onclick="searchCompany()">Analyze</button>
+            </div>
+            <div class="quick-links">
+                Try: <a onclick="quickSearch('DHFL')">DHFL</a>
+                <a onclick="quickSearch('RELIANCE')">RELIANCE</a>
+                <a onclick="quickSearch('YESBANK')">YESBANK</a>
+                <a onclick="quickSearch('TCS')">TCS</a>
+                <a onclick="quickSearch('SBIN')">SBIN</a>
+            </div>
+        </section>
+
+        <section id="highRiskSection" class="high-risk" style="display:none;">
+            <div class="section-title">High Risk Companies</div>
+            <div class="risk-list" id="highRiskList"></div>
+        </section>
+
+        <div class="loading-area" id="loading">
+            <div class="spinner"></div>
+            <p>Running forensic analysis...</p>
+        </div>
+
+        <div class="error-msg" id="errorMsg"></div>
+
+        <section class="results" id="results">
+            <div class="company-header">
+                <div class="company-name" id="companyName"></div>
+                <div class="data-source" id="dataSource"></div>
+            </div>
+
+            <div class="score-panel">
+                <div class="score-card">
+                    <div class="label">Stress Score</div>
+                    <div class="value" id="stressScore"></div>
+                    <div class="sub" id="riskBadge"></div>
+                </div>
+                <div class="score-card">
+                    <div class="label">Confidence</div>
+                    <div class="value" id="confidence"></div>
+                    <div class="sub" style="color:var(--text-muted);">Percent</div>
+                </div>
+                <div class="score-card">
+                    <div class="label">Risk Level</div>
+                    <div class="value" id="riskLevel" style="font-size:28px;padding-top:8px;"></div>
+                    <div class="sub" id="aiAgreement"></div>
+                </div>
+            </div>
+
+            <div class="section-title">Signal Breakdown</div>
+            <div id="signalBreakdown" style="margin-top:12px;"></div>
+
+            <div class="section-title" style="margin-top:28px;">Stress Trend</div>
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+
+            <div class="section-title" style="margin-top:28px;">Intelligence Engine</div>
+            <div id="aiSection" style="margin-top:12px;"></div>
+
+            <div class="section-title" style="margin-top:28px;">Circuit Breakers</div>
+            <div id="circuitBreakers" style="margin-top:12px;"></div>
+        </section>
+
+    </div>
+</div>
+
+<script>
+    let trendChart = null;
+    let searchTimeout = null;
+
+    // Coverage count
+    (async function() {
+        try {
+            const r = await fetch('/api/search?q=');
+            const d = await r.json();
+            if (d.count > 0)
+                document.getElementById('coverageCount').textContent = d.count.toLocaleString() + ' companies';
+        } catch(e) {}
+    })();
+
+    // High risk
+    (async function() {
+        try {
+            const r = await fetch('/api/most-stressed?limit=5');
+            const d = await r.json();
+            if (d.companies && d.companies.length > 0) {
+                const list = document.getElementById('highRiskList');
+                list.innerHTML = d.companies.map(c => {
+                    const color = c.stress_score >= 81 ? 'var(--critical)' : c.stress_score >= 61 ? 'var(--red)' : c.stress_score >= 31 ? 'var(--orange)' : 'var(--green)';
+                    return `<div class="risk-row" onclick="quickSearch('${c.symbol}')">
+                        <span class="risk-sym">${c.symbol}</span>
+                        <span class="risk-name">${c.company_name}</span>
+                        <span class="risk-score" style="color:${color};">${c.stress_score}/100</span>
+                        <span class="risk-signal">${c.top_signal || c.risk_level}</span>
+                    </div>`;
+                }).join('');
+                document.getElementById('highRiskSection').style.display = 'block';
+            }
+        } catch(e) {}
+    })();
+
+    function onSearchInput(value) {
+        clearTimeout(searchTimeout);
+        const ac = document.getElementById('autocomplete');
+        if (!value || value.length < 1) { ac.style.display = 'none'; return; }
+        searchTimeout = setTimeout(async () => {
+            try {
+                const r = await fetch(`/api/search?q=${encodeURIComponent(value)}`);
+                const d = await r.json();
+                if (d.results.length === 0) { ac.style.display = 'none'; return; }
+                ac.innerHTML = d.results.map(c =>
+                    `<div class="ac-item" onmousedown="selectCompany('${c.symbol}','${c.name.replace(/'/g, "\\'")}')">
+                        <strong>${c.symbol}</strong>
+                        <span class="ac-name">${c.name}</span>
+                    </div>`
+                ).join('');
+                ac.style.display = 'block';
+            } catch(e) { ac.style.display = 'none'; }
+        }, 200);
+    }
+
+    function selectCompany(symbol) {
+        document.getElementById('symbolInput').value = symbol;
+        document.getElementById('autocomplete').style.display = 'none';
+        searchCompany();
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-box'))
+            document.getElementById('autocomplete').style.display = 'none';
+    });
+
+    function quickSearch(symbol) {
+        document.getElementById('symbolInput').value = symbol;
+        document.getElementById('autocomplete').style.display = 'none';
+        searchCompany();
+    }
+
+    async function searchCompany() {
+        document.getElementById('autocomplete').style.display = 'none';
+        const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+        if (!symbol) return;
+
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('errorMsg').style.display = 'none';
+        document.getElementById('searchBtn').disabled = true;
+
+        try {
+            const resp = await fetch(`/api/score/${symbol}`);
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Analysis failed');
+            }
+            renderResults(await resp.json());
+        } catch (e) {
+            document.getElementById('errorMsg').textContent = e.message;
+            document.getElementById('errorMsg').style.display = 'block';
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('searchBtn').disabled = false;
+        }
+    }
+
+    function getScoreColor(score) {
+        if (score >= 81) return 'c-critical';
+        if (score >= 61) return 'c-red';
+        if (score >= 31) return 'c-orange';
+        return 'c-green';
+    }
+
+    function getBarColor(score, max) {
+        const pct = score / max;
+        if (pct >= 0.8) return 'bar-critical';
+        if (pct >= 0.6) return 'bar-red';
+        if (pct >= 0.3) return 'bar-orange';
+        return 'bar-green';
+    }
+
+    function renderResults(data) {
+        document.getElementById('companyName').innerHTML = `${data.symbol} \u2014 ${data.company_name} <a href="/company?symbol=${data.symbol}" style="font-size:13px;font-weight:500;color:var(--blue);text-decoration:none;margin-left:10px;vertical-align:middle;">&#8599; Full page</a>`;
+        document.getElementById('dataSource').textContent =
+            `Source: ${data.data_source}  |  ${new Date(data.last_updated).toLocaleString()}`;
+
+        const scoreEl = document.getElementById('stressScore');
+        scoreEl.textContent = data.stress_score;
+        scoreEl.className = `value ${getScoreColor(data.stress_score)}`;
+
+        document.getElementById('riskBadge').innerHTML =
+            `<span class="badge badge-${data.risk_level}">${data.risk_level}</span>`;
+
+        const confEl = document.getElementById('confidence');
+        confEl.textContent = data.confidence;
+        confEl.className = `value ${data.confidence >= 70 ? 'c-green' : 'c-orange'}`;
+
+        const riskEl = document.getElementById('riskLevel');
+        riskEl.textContent = data.risk_level;
+        riskEl.className = `value ${getScoreColor(data.stress_score)}`;
+
+        const agreeText = data.ai_analysis.agreed ? 'Analysis Complete' : 'Analysis Uncertain';
+        const agreeEl = document.getElementById('aiAgreement');
+        agreeEl.textContent = agreeText;
+        agreeEl.style.color = data.ai_analysis.agreed ? 'var(--green)' : 'var(--orange)';
+
+        // Signals
+        const signals = data.signals;
+        const signalData = [
+            { name: 'Beneish M-Score', score: signals.beneish.score, max: 25, verdict: signals.beneish.verdict },
+            { name: 'Altman Z-Score', score: signals.altman.score, max: 25, verdict: signals.altman.verdict },
+            { name: 'Piotroski F-Score', score: signals.piotroski.score, max: 20, verdict: signals.piotroski.verdict },
+            { name: 'Promoter Pledge', score: signals.pledge.score, max: 20, verdict: `${signals.pledge.current_pct}% pledged` },
+            { name: 'Cash Flow Divergence', score: signals.cashflow.score, max: 10, verdict: signals.cashflow.verdict },
+        ];
+
+        let signalHTML = '';
+        for (const s of signalData) {
+            const pct = (s.score / s.max * 100).toFixed(0);
+            signalHTML += `
+                <div class="signal-row">
+                    <div class="signal-name">${s.name}</div>
+                    <div class="signal-score">${s.score}/${s.max}</div>
+                    <div class="signal-bar-track">
+                        <div class="signal-bar-fill ${getBarColor(s.score, s.max)}" style="width:${pct}%"></div>
+                    </div>
+                    <div class="signal-verdict">${s.verdict}</div>
+                </div>`;
+        }
+        document.getElementById('signalBreakdown').innerHTML = signalHTML;
+
+        renderChart(data.historical_scores);
+
+        // AI
+        let aiHTML = '';
+        aiHTML += `<div class="ai-agreement ${data.ai_analysis.agreed ? 'ai-agreed' : 'ai-disagreed'}">
+            ${data.ai_analysis.agreed ? 'Analysis Complete' : 'Analysis Uncertain \u2014 cross-verification flagged discrepancies'}
+        </div>`;
+
+        const topicKeys = [
+            'beneish','altman','piotroski','pledge','cash flow','cashflow',
+            'divergence','manipulation','distress','leverage','debt',
+            'promoter','auditor','sebi','default','downgrade'
+        ];
+        function flagFingerprint(text) {
+            const lower = text.toLowerCase();
+            const matched = topicKeys.filter(k => lower.includes(k));
+            return matched.length > 0 ? matched.sort().join('|') : lower.replace(/[^a-z0-9]/g, '');
+        }
+
+        const seen = new Set();
+        const allFlags = [];
+        for (const flag of [...(data.ai_analysis.gemini_flags||[]), ...(data.ai_analysis.groq_flags||[])]) {
+            const fp = flagFingerprint(flag);
+            if (!seen.has(fp)) { seen.add(fp); allFlags.push(flag); }
+        }
+
+        const displayFlags = allFlags.slice(0, 5);
+        if (displayFlags.length > 0) {
+            aiHTML += '<ul class="ai-flags">';
+            for (const f of displayFlags) aiHTML += `<li>${f}</li>`;
+            aiHTML += '</ul>';
+        }
+
+        if (data.ai_analysis.summary) {
+            let summary = data.ai_analysis.summary
+                .replace(/\(Analysis by \w+ fallback engine[^)]*\)/gi, '')
+                .replace(/Gemini|Groq|GPT|LLM|fallback engine|API unavailable|quota exhausted/gi, '')
+                .replace(/\s{2,}/g, ' ').trim();
+            aiHTML += `<div class="ai-summary">${summary}</div>`;
+        }
+        document.getElementById('aiSection').innerHTML = aiHTML;
+
+        // Circuit breakers
+        let cbHTML = '';
+        if (data.circuit_breakers && data.circuit_breakers.length > 0) {
+            for (const cb of data.circuit_breakers) {
+                const cls = cb.severity === 'CRITICAL' ? 'cb-critical' : 'cb-high';
+                cbHTML += `<div class="cb-alert ${cls}">[${cb.severity}] ${cb.label}</div>`;
+            }
+        } else {
+            cbHTML = '<div class="cb-alert cb-none">No recent circuit breaker alerts detected.</div>';
+        }
+        document.getElementById('circuitBreakers').innerHTML = cbHTML;
+
+        document.getElementById('results').style.display = 'block';
+    }
+
+    function renderChart(historical) {
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        if (trendChart) trendChart.destroy();
+
+        if (!historical || historical.length === 0) {
+            document.getElementById('trendChart').parentElement.innerHTML =
+                '<p style="text-align:center;color:var(--text-muted);padding:40px;">No historical data available</p>';
+            return;
+        }
+
+        const labels = historical.map(h => h.quarter);
+        const scores = historical.map(h => h.score);
+        const lastLabel = labels[labels.length - 1] || '';
+        const isCrashChart = lastLabel.includes('FY2019') && scores[scores.length - 1] >= 60;
+
+        const pointColors = scores.map((s, i) => {
+            if (isCrashChart && i === scores.length - 1) return '#f85149';
+            if (s >= 81) return '#f85149';
+            if (s >= 61) return '#e84040';
+            if (s >= 31) return '#d29922';
+            return '#00c087';
+        });
+
+        const pointSizes = scores.map((s, i) => isCrashChart && i === scores.length - 1 ? 10 : 5);
+
+        trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Stress Score',
+                    data: scores,
+                    borderColor: '#8b949e',
+                    backgroundColor: 'rgba(232, 64, 64, 0.06)',
+                    borderWidth: 2,
+                    pointBackgroundColor: pointColors,
+                    pointBorderColor: pointColors,
+                    pointRadius: pointSizes,
+                    pointHoverRadius: 8,
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#161b22',
+                        borderColor: '#30363d',
+                        borderWidth: 1,
+                        titleColor: '#e6edf3',
+                        bodyColor: '#8b949e',
+                        titleFont: { family: '-apple-system, sans-serif' },
+                        bodyFont: { family: 'Consolas, monospace' },
+                        callbacks: {
+                            label: function(ctx) {
+                                let label = `Stress: ${ctx.parsed.y}/100`;
+                                if (isCrashChart && ctx.dataIndex === scores.length - 1)
+                                    label += ' [CRASH ZONE]';
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 0, max: 100,
+                        grid: { color: '#21262d' },
+                        ticks: { font: { family: 'Consolas', size: 11 }, color: '#484f58' },
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: '-apple-system, sans-serif', size: 11 }, color: '#484f58' },
+                    }
+                }
+            }
+        });
+
+        if (isCrashChart) {
+            const container = document.getElementById('trendChart').parentElement;
+            if (!container.querySelector('.crash-label')) {
+                const lbl = document.createElement('div');
+                lbl.className = 'crash-label';
+                lbl.style.cssText = 'text-align:right;color:var(--critical);font-weight:700;font-size:11px;margin-top:4px;letter-spacing:1px;font-family:var(--font-mono);';
+                lbl.textContent = 'CRASH BEGAN HERE -->';
+                container.appendChild(lbl);
+            }
+        }
+    }
+</script>
+</body>
+</html>
